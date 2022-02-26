@@ -53,3 +53,8 @@ To run tests, run
 ```
 pytest --pyargs preconditioners/tests/*
 ```
+To generate documentation, run
+```
+scripts/makedoc.sh
+```
+The documentation entrypoint will be generated at `docs/_build/html/index.html`
