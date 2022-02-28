@@ -93,11 +93,10 @@ def generate_centered_gaussian_data(w_star, c, n=200, d=600, sigma2=1, fix_norm_
     # generate features
     X = np.zeros((n, d))
 
-    for i in range(n):
-        X[i] = np.random.multivariate_normal(np.zeros(d), c)
+    X = np.random.multivariate_normal(mean = np.zeros(d),cov = c, size = n)
 
-        if fix_norm_of_x:
-            X[i] = X[i] * np.sqrt(d) / np.linalg.norm(X[i])
+    if fix_norm_of_x:
+        X = X*np.sqrt(d)/np.linalg.norm(X, axis = 1)[:,None]
 
     # print warning if X is not on the sphere
     if any(abs(np.linalg.norm(X, axis=1) - np.sqrt(d)) > 1e-5):
