@@ -1,7 +1,10 @@
-import numpy as np
-import pandas as pd
 import torch
+import warnings
+import pandas as pd
+import numpy as np
+from numpy.random import normal
 from sklearn.model_selection import train_test_split
+from sklearn.covariance import LedoitWolf, GraphicalLasso
 
 
 def sq_loss(y_pred, y):
@@ -118,13 +121,6 @@ def compute_optimal_ridge_regressor(X, y, snr):
     return m_1.dot(m_2.dot(y))
 
 
-import warnings
-
-import numpy as np
-from numpy.random import normal
-from sklearn.covariance import LedoitWolf, GraphicalLasso
-
-
 def generate_m(c, source_condition='id'):
     if source_condition == 'id':
         m = np.eye(c.shape[0])
@@ -210,10 +206,12 @@ def generate_centered_gaussian_data(w_star, c, n=200, d=600, sigma2=1, fix_norm_
     assert len(w_star) == d, 'dimensions error'
 
     # generate features
-    X = np.random.multivariate_normal(mean=np.zeros(d), cov=c, size=n)
+    X = np.zeros((n, d))
+
+    X = np.random.multivariate_normal(mean = np.zeros(d),cov = c, size = n)
 
     if fix_norm_of_x:
-        X = X*np.sqrt(d)/np.linalg.norm(X, axis=1)[:, None]
+        X = X*np.sqrt(d)/np.linalg.norm(X, axis = 1)[:,None]
 
     # print warning if X is not on the sphere
     if any(abs(np.linalg.norm(X, axis=1) - np.sqrt(d)) > 1e-5):
