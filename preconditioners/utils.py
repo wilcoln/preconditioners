@@ -1,10 +1,11 @@
-import torch
 import warnings
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+import torch
 from numpy.random import normal
-from sklearn.model_selection import train_test_split
 from sklearn.covariance import LedoitWolf, GraphicalLasso
+from sklearn.model_selection import train_test_split
 
 
 def sq_loss(y_pred, y):
@@ -208,10 +209,10 @@ def generate_centered_gaussian_data(w_star, c, n=200, d=600, sigma2=1, fix_norm_
     # generate features
     X = np.zeros((n, d))
 
-    X = np.random.multivariate_normal(mean = np.zeros(d),cov = c, size = n)
+    X = np.random.multivariate_normal(mean=np.zeros(d), cov=c, size=n)
 
     if fix_norm_of_x:
-        X = X*np.sqrt(d)/np.linalg.norm(X, axis = 1)[:,None]
+        X = X * np.sqrt(d) / np.linalg.norm(X, axis=1)[:, None]
 
     # print warning if X is not on the sphere
     if any(abs(np.linalg.norm(X, axis=1) - np.sqrt(d)) > 1e-5):
@@ -239,7 +240,7 @@ def flatten_params(parameters):
     s = 0
     for p in l:
         size = p.shape[0]
-        indices.append((s, s+size))
+        indices.append((s, s + size))
         s += size
     flat = torch.cat(l).view(-1, 1)
     return {"params": flat, "indices": indices}
