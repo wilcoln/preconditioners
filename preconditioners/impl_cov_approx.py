@@ -94,3 +94,5 @@ def run_optimization():
             break
         if i%100 == 0:
             print(f'iteration {i}, error {error}')
+    
+    return C, loss_val, error
