@@ -7,7 +7,7 @@ from preconditioners.utils import generate_c, generate_centered_gaussian_data
 
 
 def log_lik(cov_inv, cov_empir):
-    # TODO: nimplement cholesky decomposition functionality for speedup of computing determinant
+    # TODO: implement cholesky decomposition functionality for speedup of computing determinant
     return np.log(np.linalg.det(cov_inv) + 1e-10) - np.trace(cov_empir.dot(cov_inv))
 
 
@@ -17,6 +17,9 @@ def regul(cov_inv, X):
     temp_1 = (np.eye(X.shape[1]) - X.T.dot(np.linalg.inv(X.dot(X.T))).dot(X))
     temp_2 = temp_1.dot(cov_inv.dot(X.T))
     return 1 / np.trace(temp_2.dot(temp_2.T))
+
+# try adding extra regularization so that np.linalg.det(cov_inv) does not go to infinity. For exmple
+# 1/1/log(det(cov_inv))+1 (you know what I mean )    
 
 
 def loss(cov_inv, X, cov_empir, regul_lambda):
@@ -48,3 +51,4 @@ def grad_loss(C, cov_empir, regul_lambda, X):
 
     # note there is a minus also inside grad_regul.
     return grad_log_lik(C, cov_empir) - regul_lambda * grad_regul(C, X, cov_empir)
+  
