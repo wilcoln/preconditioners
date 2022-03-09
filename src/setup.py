@@ -7,4 +7,5 @@ setuptools.setup(
     author_email="",
     description="preconditioners package",
     packages=setuptools.find_packages(),
+    python_requires=">=3.7"
 )

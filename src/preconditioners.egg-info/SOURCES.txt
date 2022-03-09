@@ -1,0 +1,12 @@
+setup.py
+preconditioners/__init__.py
+preconditioners/datasets.py
+preconditioners/impl_cov_approx.py
+preconditioners/optimizers.py
+preconditioners/utils.py
+preconditioners.egg-info/PKG-INFO
+preconditioners.egg-info/SOURCES.txt
+preconditioners.egg-info/dependency_links.txt
+preconditioners.egg-info/top_level.txt
+preconditioners/tests/__init__.py
+preconditioners/tests/test_impl_cov_approx.py

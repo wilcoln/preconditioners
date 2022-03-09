@@ -38,7 +38,12 @@ finish, run `conda deactivate`.
 ### Package installation
 To install the package go to the root of this directory and run
 ```
-conda develop preconditioners/
+python -m pip install -e src/
+```
+or (depends if you prefer using pip or conda as your package manager)
+
+```
+conda develop src/
 ```
 Now every time you want to run some piece of code you can import it from `preconditioners`.
 Alternatively, you can add the `preconditioners` package to your python path, by adding these line at the top of 
