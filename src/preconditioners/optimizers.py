@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from torch.autograd import grad
 from torch.optim.optimizer import Optimizer
 
 
@@ -32,17 +33,17 @@ class PrecondGD(Optimizer):
 
     """Implements preconditionned gradient descent, takes a preconditionning matrix as input
     Example:
-        >>> import numpy as np
+        >>> import numpy as npm
         >>> from preconditioners.optimizers import PrecondGD
         >>> params = model.parameters()
-        >>> optimizer = PrecondGD(params=params, lr=0.1, p_inv = np.eye(len(params)))
+        >>> optimizer = PrecondGD(params=params, lr=0.1, labeled_data=None, unlabeled_data=None)
         >>> optimizer.zero_grad()
         >>> loss_fn(model(input), target).backward()
         >>> optimizer.step()
     """
 
-    def __init__(self, model, lr, p_inv):
-        defaults = dict(lr=lr, p_inv=p_inv)
+    def __init__(self, model, lr, labeled_data, unlabeled_data):
+        defaults = dict(lr=lr, labeled_data=labeled_data, unlabeled_data=unlabeled_data)
         super(PrecondGD, self).__init__(model.parameters(), defaults)
 
         self.known_modules = {'Linear'}
@@ -89,15 +90,13 @@ class PrecondGD(Optimizer):
         """
         return np.reshape(p_grad_mat[m], -1)
 
-    def _get_natural_grad(self, i, m, p_grad_vec: dict, p_grad_mat: dict):
+    def _get_natural_grad(self, i, m, p_grad_vec: dict, p_grad_mat: dict, p_inv):
         """
         :param i: the layer index
         :param m:  the layer
         :param p_grad_vec: the gradients in vector form
         :return: a list of gradients w.r.t to the parameters in `m`
         """
-
-        p_inv = self.param_groups[0]['p_inv']
         k = len(p_grad_vec)
         m_size = len(p_grad_vec[m])
 
@@ -150,10 +149,35 @@ class PrecondGD(Optimizer):
         updates = {}
         p_grad_mat = {m: self._get_matrix_form_grad(m, m.__class__.__name__) for m in self.modules}
         p_grad_vec = {m: self._get_vector_form_grad(m, p_grad_mat) for m in self.modules}
+        p_inv = self._compute_p_inv()
+
         for i, m in enumerate(self.modules):
-            v = self._get_natural_grad(i, m, p_grad_vec, p_grad_mat)
+            v = self._get_natural_grad(i, m, p_grad_vec, p_grad_mat, p_inv)
             updates[m] = v
         self._update_grad(updates)
 
         self._step(closure)
         self.steps += 1
+
+    def _compute_p_inv(self) -> np.ndarray:
+        """Compute the inverse matrix"""
+        group = self.param_groups[0]
+
+        labeled_data = group['labeled_data'].float()
+        unlabeled_data = group['unlabeled_data'].float()
+
+        with torch.no_grad():
+            y_labeled = self.model(labeled_data)
+            y_unlabeled = self.model(unlabeled_data)
+
+        y_labeled.requires_grad = True
+        y_unlabeled.requires_grad = True
+
+        labeled_grads = grad(outputs=y_labeled, inputs=labeled_data, grad_outputs=torch.ones_like(y_labeled))
+        unlabeled_grads = grad(outputs=y_unlabeled, inputs=unlabeled_data, grad_outputs=torch.ones_like(y_unlabeled))
+
+        p = (1/labeled_data.shape[0]) * np.sum(labeled_grads[i] @ labeled_grads[i].T for i in enumerate(labeled_grads))
+        p += (1/unlabeled_data.shape[0]) * np.sum(unlabeled_grads[i] @ unlabeled_grads[i].T for i in enumerate(
+            unlabeled_grads))
+
+        return np.linalg.inv(p)
