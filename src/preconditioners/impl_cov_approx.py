@@ -21,7 +21,6 @@ def regul(cov_inv, X):
 # try adding extra regularization so that np.linalg.det(cov_inv) does not go to infinity. For exmple
 # 1/1/log(det(cov_inv))+1 (you know what I mean )    
 
-
 def loss(cov_inv, X, cov_empir, regul_lambda):
     # subtracting the regularization term from the log-likelihood because we want to maximize the log-likelihood
     return log_lik(cov_inv, cov_empir) - regul_lambda * regul(cov_inv, X)
@@ -34,7 +33,7 @@ def grad_log_lik(C, cov_empir):
 
 def grad_regul(C, X, cov_empir):
     # using the parametrization cov_inv = CC^T and computing gradient with respect to C
-    # TODO: iI think it makes a computational difference if I do A.dot(B.dot(C)) or A.dot(B).dot(C). Check this and possibly optimize.
+    # TODO: I think it makes a computational difference if I do A.dot(B.dot(C)) or A.dot(B).dot(C). Check this and possibly optimize.
 
     XtX = cov_empir * X.shape[0]
     CCt = C.dot(C.T)
