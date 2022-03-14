@@ -1,4 +1,4 @@
-import numpy as np
+from icecream import ic
 import torch
 from torch.autograd import grad
 from torch.optim.optimizer import Optimizer
@@ -29,8 +29,14 @@ class GradientDescent(Optimizer):
         return loss
 
 
-class PrecondGD(Optimizer):
+def _grad(outputs, inputs):
+    outputs.requires_grad = True
+    inputs.requires_grad = True
+    grad_outputs = torch.ones_like(outputs)
+    return grad(outputs=outputs, inputs=inputs, grad_outputs=grad_outputs, allow_unused=True)[0]
 
+
+class PrecondGD(Optimizer):
     """Implements preconditionned gradient descent, takes a preconditionning matrix as input
     Example:
         >>> import numpy as npm
@@ -80,15 +86,14 @@ class PrecondGD(Optimizer):
             p_grad_mat = torch.cat([p_grad_mat, m.bias.grad.data.view(-1, 1)], 1)
         return p_grad_mat
 
-
     @staticmethod
     def _get_vector_form_grad(m, p_grad_mat):
         """
         :param m: the layer
         :param p_grad_mat: the matrix form of the gradient
-        :return: a vector form of the gradient. it should be a output_dim * input_dim] vector.
+        :return: a vector form of the gradient. it should be a output_dim * input_dim dimension vector.
         """
-        return np.reshape(p_grad_mat[m], -1)
+        return p_grad_mat[m].view(-1)
 
     def _get_natural_grad(self, i, m, p_grad_vec: dict, p_grad_mat: dict, p_inv):
         """
@@ -98,14 +103,15 @@ class PrecondGD(Optimizer):
         :return: a list of gradients w.r.t to the parameters in `m`
         """
         k = len(p_grad_vec)
-        m_size = len(p_grad_vec[m])
+        m_size = p_grad_vec[m].shape[0]
 
         # Natural gradient computation for layer m
         # As a vector of dimension output_dim * input_dim
-        v = np.sum(
-            p_inv[i*k:i*k+m_size, j*k:j*k + len(p_grad_vec[mj])] @ p_grad_vec[mj].numpy()
+        stacked_blocks = torch.stack([
+            p_inv[i * k:i * k + m_size, j * k:j * k + p_grad_vec[mj].shape[0]] @ p_grad_vec[mj]
             for j, mj in enumerate(self.modules)
-        )
+        ])
+        v = torch.sum(stacked_blocks, 0)
 
         # v = np.zeros(p_grad_vec[m].shape)
         # for j, mj in enumerate(self.modules):
@@ -113,8 +119,8 @@ class PrecondGD(Optimizer):
         #     block = p_inv[i*k:i*k+m_size, j*k:j*k+mj_size]
         #     v += block @ p_grad_vec[mj].numpy()
 
-        # Reshaping as a matrix of dimension output_dim * input_dim
-        v = torch.Tensor(np.reshape(v, p_grad_mat[m].shape))
+        # Reshaping as a matrix of dimension [output_dim , input_dim ]
+        v = v.view(p_grad_mat[m].shape)
 
         if m.bias is not None:
             # we always put gradient w.r.t weight in [0]
@@ -159,7 +165,7 @@ class PrecondGD(Optimizer):
         self._step(closure)
         self.steps += 1
 
-    def _compute_p_inv(self) -> np.ndarray:
+    def _compute_p_inv(self) -> torch.Tensor:
         """Compute the inverse matrix"""
         group = self.param_groups[0]
 
@@ -170,14 +176,24 @@ class PrecondGD(Optimizer):
             y_labeled = self.model(labeled_data)
             y_unlabeled = self.model(unlabeled_data)
 
-        y_labeled.requires_grad = True
-        y_unlabeled.requires_grad = True
+        # Compute the gradient of the loss w.r.t the output of the model
+        labeled_grads = _grad(outputs=y_labeled, inputs=labeled_data)
+        unlabeled_grads = _grad(outputs=y_unlabeled, inputs=unlabeled_data)
 
-        labeled_grads = grad(outputs=y_labeled, inputs=labeled_data, grad_outputs=torch.ones_like(y_labeled))
-        unlabeled_grads = grad(outputs=y_unlabeled, inputs=unlabeled_data, grad_outputs=torch.ones_like(y_unlabeled))
+        ic(labeled_grads)
+        ic(unlabeled_grads)
 
-        p = (1/labeled_data.shape[0]) * np.sum(labeled_grads[i] @ labeled_grads[i].T for i in enumerate(labeled_grads))
-        p += (1/unlabeled_data.shape[0]) * np.sum(unlabeled_grads[i] @ unlabeled_grads[i].T for i in enumerate(
-            unlabeled_grads))
+        stacked_labeled_grads = torch.stack([
+            labeled_grad @ labeled_grad.T
+            for labeled_grad in torch.unbind(labeled_grads)
+        ])
 
-        return np.linalg.inv(p)
+        stacked_unlabeled_grads = torch.stack([
+            unlabeled_grad @ unlabeled_grad.T
+            for unlabeled_grad in torch.unbind(unlabeled_grads)
+        ])
+
+        p = (1 / labeled_data.shape[0]) * torch.sum(stacked_labeled_grads, 0)
+        p += (1 / unlabeled_data.shape[0]) * torch.sum(stacked_unlabeled_grads, 0)
+
+        return torch.inverse(p)
