@@ -258,3 +258,19 @@ def recover_flattened(flat_params, indices, model):
     for i, p in enumerate(model.parameters()):
         l[i] = l[i].view(*p.shape)
     return l
+
+
+def model_gradient(y, model):
+    param_grads = []
+
+    for param in model.parameters():
+        param_grads.append(param_gradient(y, param))
+
+    return torch.cat([grad.view(-1) for grad in param_grads]).view(-1, 1)
+
+
+def param_gradient(y, param, grad_outputs=None):
+    """Compute dy/dx @ grad_outputs"""
+    if grad_outputs is None:
+        grad_outputs = torch.ones_like(y)
+    return torch.autograd.grad(y, param, grad_outputs=grad_outputs, create_graph=True)[0]

@@ -1,7 +1,8 @@
-from icecream import ic
+import numpy as np
 import torch
-from torch.autograd import grad
 from torch.optim.optimizer import Optimizer
+from icecream import ic
+from utils import model_gradient
 
 
 class GradientDescent(Optimizer):
@@ -27,13 +28,6 @@ class GradientDescent(Optimizer):
                 p.data.add_(-group['lr'], d_p)
 
         return loss
-
-
-def _grad(outputs, inputs):
-    outputs.requires_grad = True
-    inputs.requires_grad = True
-    grad_outputs = torch.ones_like(outputs)
-    return grad(outputs=outputs, inputs=inputs, grad_outputs=grad_outputs, allow_unused=True)[0]
 
 
 class PrecondGD(Optimizer):
@@ -172,26 +166,21 @@ class PrecondGD(Optimizer):
         labeled_data = group['labeled_data'].float()
         unlabeled_data = group['unlabeled_data'].float()
 
-        with torch.no_grad():
-            y_labeled = self.model(labeled_data)
-            y_unlabeled = self.model(unlabeled_data)
+        # Compute the output of the model on the labeled and unlabeled data
+        y_labeled = self.model(labeled_data)
+        y_unlabeled = self.model(unlabeled_data)
 
-        # Compute the gradient of the loss w.r.t the output of the model
-        labeled_grads = _grad(outputs=y_labeled, inputs=labeled_data)
-        unlabeled_grads = _grad(outputs=y_unlabeled, inputs=unlabeled_data)
+        # Fix to allow computation of gradients on non-leaf nodes
+        y_labeled.retain_grad()
+        y_unlabeled.retain_grad()
 
-        ic(labeled_grads)
-        ic(unlabeled_grads)
+        # Compute the gradient of the output on the labeled and unlabeled data w.r.t the model parameters
+        labeled_grad_list = [model_gradient(y, self.model) for y in torch.unbind(y_labeled)]
+        unlabeled_grad_list = [model_gradient(y, self.model) for y in torch.unbind(y_unlabeled)]
 
-        stacked_labeled_grads = torch.stack([
-            labeled_grad @ labeled_grad.T
-            for labeled_grad in torch.unbind(labeled_grads)
-        ])
-
-        stacked_unlabeled_grads = torch.stack([
-            unlabeled_grad @ unlabeled_grad.T
-            for unlabeled_grad in torch.unbind(unlabeled_grads)
-        ])
+        # Compute the fisher information matrix at this iteration
+        stacked_labeled_grads = torch.stack([grad @ grad.T for grad in labeled_grad_list])
+        stacked_unlabeled_grads = torch.stack([grad @ grad.T for grad in unlabeled_grad_list])
 
         p = (1 / labeled_data.shape[0]) * torch.sum(stacked_labeled_grads, 0)
         p += (1 / unlabeled_data.shape[0]) * torch.sum(stacked_unlabeled_grads, 0)
