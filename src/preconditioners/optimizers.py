@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from torch.optim.optimizer import Optimizer
 from icecream import ic
-from utils import model_gradient
+from preconditioners.utils import model_gradient
 
 
 class GradientDescent(Optimizer):
