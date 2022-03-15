@@ -1,21 +1,22 @@
 import unittest
 
+from icecream import ic
 from torch import nn
-from torch.utils.data import random_split
+from torch.utils.data import random_split, DataLoader
 
 from preconditioners import settings
 from preconditioners.datasets import CenteredGaussianDataset
 from preconditioners.cov_approx.impl_cov_approx import *
 from preconditioners.utils import generate_c, SLP
-from preconditioners.optimizers import PrecondGD
+from preconditioners.optimizers import PrecondGD, GradientDescent
 
 
-class TestPinv(unittest.TestCase):
+class TestPrecondVsGradDescent(unittest.TestCase):
 
     def setUp(self):
-        d = 30
-        train_size = 10
-        extra_size = 1000
+        d = 10
+        train_size = 100
+        extra_size = 900
         w_star = np.random.multivariate_normal(mean=np.zeros(d), cov=np.eye(d))
         self.c = generate_c(ro=.5, regime='autoregressive', d=d)
         self.dataset = CenteredGaussianDataset(w_star=w_star, d=d, c=self.c, n=train_size + extra_size)
@@ -25,7 +26,8 @@ class TestPinv(unittest.TestCase):
         unlabeled_data = extra_dataset[:][0].double().to(settings.DEVICE)
 
         self.model = SLP(in_channels=self.dataset.X.shape[1]).double().to(settings.DEVICE)
-        self.optimizer = PrecondGD(self.model, lr=1e-3, labeled_data=labeled_data, unlabeled_data=unlabeled_data)
+        self.optimizer1 = PrecondGD(self.model, lr=1e-1, labeled_data=labeled_data, unlabeled_data=unlabeled_data)
+        self.optimizer2 = GradientDescent(self.model.parameters(), lr=1e-1)
 
     def train(self, model, train_dataset, optimizer, loss_function, n_epochs, print_every=1):
         for epoch in range(n_epochs):
@@ -59,26 +61,26 @@ class TestPinv(unittest.TestCase):
 
             current_loss /= len(train_dataset)
 
-            matrix_loss = np.linalg.norm(optimizer._compute_p_inv() - np.linalg.inv(self.c))
-
             if epoch % print_every == 0:
-                print(f'Epoch {epoch + 1}: Train loss: {current_loss:.4f} Matrix error: {matrix_loss:.4f}')
+                print(f'Epoch {epoch + 1}: Train loss: {current_loss:.4f}')
+
+        return current_loss
 
     def test_p_inv(self):
-        self.train(
+        loss1 = self.train(
             self.model,
             self.train_dataset,
-            self.optimizer,
+            self.optimizer1,
             nn.MSELoss(),
             n_epochs=10)
 
-        p_inv = self.optimizer._compute_p_inv()
-        mat_error = np.linalg.norm(p_inv - np.linalg.inv(self.c))
-        self.assertTrue(
-            mat_error < 0.01,
-            msg=f'The error is {mat_error} and \
-            the first entries of p_inv are {p_inv[:4,:4]}\
-            while the first entries of the true matrix are {np.linalg.inv(self.c)[:4,:4]}\
-            and the first entries of X^TX/n are '
-                f'{(self.dataset.X.T @ self.dataset.X/self.dataset.X.shape[0])[:4,:4]}'
-        )
+        self.model.reset_parameters()
+
+        loss2 = self.train(
+            self.model,
+            self.train_dataset,
+            self.optimizer2,
+            nn.MSELoss(),
+            n_epochs=10)
+
+        self.assertLessEqual(loss1, loss2)

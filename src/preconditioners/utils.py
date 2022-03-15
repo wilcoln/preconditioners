@@ -264,10 +264,7 @@ def recover_flattened(flat_params, indices, model):
 
 
 def model_gradient(y, model):
-    param_grads = []
-
-    for param in model.parameters():
-        param_grads.append(param_gradient(y, param))
+    param_grads = [param_gradient(y, param) for param in model.parameters()]
 
     return torch.cat([grad.view(-1) for grad in param_grads]).view(-1, 1)
 
@@ -284,8 +281,11 @@ class SLP(nn.Module):
 
         def __init__(self, in_channels):
             super().__init__()
-            self.layers = nn.Sequential(nn.Linear(in_channels, 1, bias=False))
+            self.layer = nn.Linear(in_channels, 1, bias=False)
 
         def forward(self, x):
             """ Forward pass of the MLP. """
-            return self.layers(x)
+            return self.layer(x)
+
+        def reset_parameters(self):
+            return self.layer.reset_parameters()

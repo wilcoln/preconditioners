@@ -138,7 +138,7 @@ class PrecondGD(Optimizer):
             if m.bias is not None:
                 m.bias.grad.data.copy_(v[1])
 
-    def _step(self, closure):
+    def _step(self):
         for group in self.param_groups:
 
             for p in group['params']:
@@ -160,15 +160,15 @@ class PrecondGD(Optimizer):
             updates[m] = v
         self._update_grad(updates)
 
-        self._step(closure)
+        self._step()
         self.steps += 1
 
     def _compute_p_inv(self) -> torch.Tensor:
         """Compute the inverse matrix"""
         group = self.param_groups[0]
 
-        labeled_data = group['labeled_data'].float()
-        unlabeled_data = group['unlabeled_data'].float()
+        labeled_data = group['labeled_data']
+        unlabeled_data = group['unlabeled_data']
 
         # Compute the output of the model on the labeled and unlabeled data
         y_labeled = self.model(labeled_data)
