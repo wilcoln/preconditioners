@@ -1,6 +1,6 @@
 import unittest
 
-from preconditioners.impl_cov_approx import *
+from preconditioners.cov_approx.impl_cov_approx import *
 from preconditioners.utils import generate_c, generate_centered_gaussian_data
 
 

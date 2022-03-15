@@ -5,13 +5,17 @@ from torch.utils.data import DataLoader, random_split
 from preconditioners import settings
 from preconditioners.datasets import CenteredGaussianDataset
 from preconditioners.optimizers import PrecondGD
-
+from preconditioners.utils import generate_c
 # Set fixed random number seed
 torch.manual_seed(0)
 
 
 # Create a dataset
-dataset = CenteredGaussianDataset(w_star=np.ones(2), d=2, c=np.ones((2, 2)), n=1000)
+c = generate_c(ro=0.5,regime='autoregressive', d=2)
+dataset = CenteredGaussianDataset(w_star=np.ones(2), d=2, c=c, n=1000)
+# c needs to be invertible, you had c = np.ones((2,2)). I can imagine this causing
+# invertibility problems of the data. If you need to test it it's best to use the 
+# command above, or if you must then c = np.eye(d)
 
 
 # Create an MLP model
@@ -38,6 +42,10 @@ class MLP(nn.Module):
 train_size = int(0.7 * len(dataset))
 test_size = int(0.2 * len(dataset))
 extra_size = len(dataset) - train_size - test_size
+
+# Eduard comment: The way we will test it, these are going to be the sizes:
+# len(test_data) < len(train_data) < no_of_parameters_of_the_model << len(extra_data)
+# If you need to
 
 train_dataset, test_dataset, extra_dataset = random_split(dataset, [train_size, test_size, extra_size])
 

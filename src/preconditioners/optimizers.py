@@ -99,6 +99,10 @@ class PrecondGD(Optimizer):
         k = len(p_grad_vec)
         m_size = p_grad_vec[m].shape[0]
 
+        # Eduard Comment: I think it would be best to write a separate helper function for the 
+        # 4 lines of code below and write a couple of unit tests just for it, to be sure that 
+        # it does what you think it should be doing.
+
         # Natural gradient computation for layer m
         # As a vector of dimension output_dim * input_dim
         stacked_blocks = torch.stack([
@@ -178,11 +182,19 @@ class PrecondGD(Optimizer):
         labeled_grad_list = [model_gradient(y, self.model) for y in torch.unbind(y_labeled)]
         unlabeled_grad_list = [model_gradient(y, self.model) for y in torch.unbind(y_unlabeled)]
 
+        # Eduard comment: when you do loss.backward() in examples/precond.py then it also computes
+        # the gradient of the loss (and hence also of the output on the labeled data) with respect 
+        # to the model parameters. Hence we do it twice. Right now I would not change it, but let's
+        # keep this comment here so that we can perhaps do it later.
+
         # Compute the fisher information matrix at this iteration
         stacked_labeled_grads = torch.stack([grad @ grad.T for grad in labeled_grad_list])
         stacked_unlabeled_grads = torch.stack([grad @ grad.T for grad in unlabeled_grad_list])
 
         p = (1 / labeled_data.shape[0]) * torch.sum(stacked_labeled_grads, 0)
         p += (1 / unlabeled_data.shape[0]) * torch.sum(stacked_unlabeled_grads, 0)
+
+        # Eduard comment: I think it is ok. I will write a short unittest which the p_inv function 
+        # should satisfy
 
         return torch.inverse(p)
