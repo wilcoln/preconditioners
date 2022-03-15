@@ -1,4 +1,4 @@
-import unittest
+import unittest, torch
 
 from torch import nn
 from torch.utils.data import random_split
@@ -14,10 +14,10 @@ class TestPinv(unittest.TestCase):
 
     def test_p_inv(self):
 
-        d = 30
+        d = 10
         train_size = 10
         test_size = 2
-        extra_size = 1000
+        extra_size = 2000
         c = generate_c(ro=.5, regime='autoregressive', d=d)
 
         w_star = np.random.multivariate_normal(mean=np.zeros(d), cov=np.eye(d))
@@ -49,5 +49,5 @@ class TestPinv(unittest.TestCase):
             msg=f'The error is {np.linalg.norm(p_inv - np.linalg.inv(c))} and \
             the first entries of p_inv are {p_inv[:4,:4]}\
             while the first entries of the true matrix are {np.linalg.inv(c)[:4,:4]}\
-            and the first entries of X^TX/n are {((dataset.X).T @ (dataset.X)/(train_size+test_size+extra_size))[:4,:4]}'
+            and the first entries of X^TX/n are {torch.inverse((dataset.X).T @ (dataset.X)/(train_size+test_size+extra_size))[:4,:4]}'
         )
