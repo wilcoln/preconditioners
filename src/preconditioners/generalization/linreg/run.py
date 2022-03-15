@@ -8,7 +8,7 @@ if __name__ == '__main__':
 
 
     # for smaller run time (but noisier plot) decrease n
-    display_risks_gamma(n = 2000,
+    display_risks_gamma(n = 50,
                         r2=1,
                         sigma2=1,
 
@@ -23,13 +23,14 @@ if __name__ == '__main__':
                         empir = 'gl',
                         alpha = 0.1,
 
-                        include_gd = False,
+                        include_gd = True,
                         include_md = False,
                         include_md_empirical = False,
                         include_best_achievable = True,
-                        include_best_achievable_empirical = True,
+                        include_best_achievable_empirical_new = True,
+                        include_best_achievable_empirical_gl = True,
 
-                        snr_estimation = list(np.linspace(0.1,1,10))+list(np.linspace(1,10,10)),
+                        snr_estimation = 1,
                         crossval_param = 10,
 
                         savefile = True,

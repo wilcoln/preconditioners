@@ -2,13 +2,14 @@ import warnings
 
 import numpy as np
 import pandas as pd
-import torch
+import torch, scipy
 from numpy.random import normal
 from sklearn.covariance import LedoitWolf, GraphicalLasso
 from sklearn.model_selection import train_test_split
 from torch import nn
+from preconditioners.cov_approx.variance import var_solve
 
-import settings
+import preconditioners.settings
 
 
 def sq_loss(y_pred, y):
@@ -23,14 +24,13 @@ def calculate_risk_rf(a, w_star, c, cov_z, cov_zx):
     return a.dot(cov_z.dot(a)) + w_star.dot(c.dot(w_star)) - 2 * a.dot(cov_zx.dot(w_star))
 
 
-def compute_best_achievable_interpolator(X, y, c, m, snr, crossval_param=100):
+def compute_best_achievable_interpolator(X, y, c_inv, m, snr, crossval_param=100):
     """ If snr is passed as a list then for each entry in snr, this function splits
         X, y into a train-test split crossval_param times and calculates the
         average crossvalidated error on for the given entry in snr. The
         average of the first three entries which minimize the crossvalidated error
         is chosed as an estimate of the signal-to-noise ratio."""
 
-    c_inv = np.linalg.inv(c)
     d = X.shape[1]
     n = X.shape[0]
 
@@ -75,7 +75,7 @@ def compute_best_achievable_interpolator(X, y, c, m, snr, crossval_param=100):
     return w_e
 
 
-def compute_best_achievable_interpolator_rf(X, Z, y, cov_z, cov_zx, m, snr, crossval_param):
+def compute_best_achievable_interpolator_rf(X, Z, y, cov_z_inv, cov_zx, m, snr, crossval_param):
     """ If snr is passed as a list then for each entry in snr, this function splits
         X, y into a train-test split crossval_param times and calculates the
         average crossvalidated error on for the given entry in snr. The
@@ -87,7 +87,7 @@ def compute_best_achievable_interpolator_rf(X, Z, y, cov_z, cov_zx, m, snr, cros
     N = Z.shape[1]
 
     # calculate the best_achievable interpolator according to formula in paper
-    m_1 = np.linalg.inv(cov_z)
+    m_1 = cov_z_inv
 
     m_21 = cov_zx.dot(m.dot(X.T))
     m_22 = Z.T.dot(np.linalg.inv(Z.dot(m_1.dot(Z.T))))
@@ -187,23 +187,38 @@ def generate_c(ro=0.25,
     return c
 
 
-def generate_c_empir(X, empir, alpha=0.25):
-    if empir == 'basic':
-        c_e = X.transpose().dot(X) / len(X)
+def generate_c_inv_empir(X, empir, alpha=0.25):
 
-    elif empir == 'lw':
+    if empir == 'lw':
 
         lw = LedoitWolf(assume_centered=True).fit(X)
-        c_e = lw.covariance_
+        c_inv_e = lw.precision_
 
     elif empir == 'gl':
         gl = GraphicalLasso(assume_centered=True, alpha=alpha, tol=1e-4).fit(X)
-        c_e = gl.covariance_
+        c_inv_e = gl.precision_
+    
+    elif empir == 'variance_gl':
+        # compute glasso
+        gl = GraphicalLasso(assume_centered=True, alpha=alpha, tol=1e-4).fit(X)
+        cov_gl = gl.covariance_
 
+        n, d = X.shape
+        cov_empir = X.T.dot(X) / n
+        cov_inv = np.linalg.inv(cov_empir + 0.1 * np.eye(d))
+        C_init = scipy.linalg.cholesky(cov_inv) + 0.5 * generate_c(ro=0.2,
+                                                                regime='autoregressive',
+                                                                n=n,
+                                                                d=d,
+                                                                )
+
+        _, C = var_solve(B = cov_gl, X=X, CInit = C_init, np=np)
+        c_inv_e = C.dot(C.T)
+        
     else:
         raise AssertionError('specify regime of empirical approximation')
 
-    return c_e
+    return c_inv_e
 
 
 def generate_centered_gaussian_data(w_star, c, n=200, d=600, sigma2=1, fix_norm_of_x=False):

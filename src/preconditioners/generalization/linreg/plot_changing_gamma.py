@@ -1,13 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.linalg as sc
+import os, json
 
 from preconditioners.utils import *
+from preconditioners.paths import plots_dir
 from preconditioners.generalization.linreg.Regressor import LinearRegressor
 from datetime import datetime as dt
 
 
-
+#TODO: absolutely have to redo this so that I work with the inverse of the covariance directly ! This may be the biggest computational burden here
 
 
 def display_risks_gamma(n = 100,
@@ -146,12 +148,15 @@ def display_risks_gamma(n = 100,
 
         '''
 
+    saved_args = locals()
+
     snr = r2/sigma2
 
     # generate sequence of gammas for plotting
     gammas = np.concatenate((np.linspace(start_gamma,start_gamma+(end_gamma-start_gamma)/3,8),np.linspace(start_gamma+(end_gamma-start_gamma)/3+(end_gamma-start_gamma)/15,end_gamma,7)))
 
-    risks = np.zeros((len(gammas), 7))
+    #risks = np.zeros((len(gammas), 7))
+    risks = pd.DataFrame([],columns = ['gd', 'md', 'md_e', 'achie', 'achie_e', 'gl', 'b'])
 
     count = 0
     # do experiment for each gamma
@@ -167,6 +172,7 @@ def display_risks_gamma(n = 100,
                         strong_feature = strong_feature,
                         strong_feature_ratio = strong_feature_ratio,
                         weak_feature = weak_feature)
+        c_inv = np.linalg.inv(c) # get rid of this for potential future speedup
 
         # generate covariance matrix of the prior of the true parameter
         m = generate_m(c, source_condition = source_condition)
@@ -179,7 +185,7 @@ def display_risks_gamma(n = 100,
         print('data generated')
 
         # generate empirical estimate of the covariance matrix
-        c_e = generate_c_empir(X, empir, alpha)
+        c_inv_e = generate_c_inv_empir(X, empir, alpha)
         print('covariance matrix estimated')
 
         # initialize models
@@ -191,24 +197,24 @@ def display_risks_gamma(n = 100,
         # matrix specifies which mirror descent we are using (GD if None)
         reg_2.fit(X, y, matrix = None)
         reg_c.fit(X, y, matrix = c)
-        reg_ce.fit(X, y, matrix = c_e)
+        reg_ce.fit(X, y, matrix = c_inv_e)
 
-        w_a = compute_best_achievable_interpolator(X, y, c, m, snr)
+        w_a = compute_best_achievable_interpolator(X, y, c_inv, m, snr)
         reg_a = LinearRegressor(init = w_a)
 
         if include_best_achievable_empirical_new:
-            w_ae = compute_best_achievable_interpolator(X, y, c = c_e, m = np.eye(d), snr = snr_estimation, crossval_param = crossval_param)
+            w_ae = compute_best_achievable_interpolator(X, y, c_inv = c_inv_e, m = np.eye(d), snr = snr_estimation, crossval_param = crossval_param)
             reg_ae = LinearRegressor(init = w_ae)
             print('empirical approximation computed')
         
         if include_best_achievable_empirical_gl:
-            c_gl = generate_c_empir(X, 'gl', alpha)
-            w_gl = compute_best_achievable_interpolator(X, y, c = c_gl, m = np.eye(d), snr = snr_estimation, crossval_param = crossval_param)
+            c_inv_gl = generate_c_inv_empir(X, 'gl', alpha)
+            w_gl = compute_best_achievable_interpolator(X, y, c_inv = c_inv_gl, m = np.eye(d), snr = snr_estimation, crossval_param = crossval_param)
             reg_gl = LinearRegressor(init = w_gl)
             print('empirical approximation computed')
 
         # best possible linear predictor
-        c_mhalf = np.linalg.inv(sc.sqrtm(c)) # inverse square root of the covariance matrix
+        c_mhalf = sc.sqrtm(c_inv) # inverse square root of the covariance matrix
         w_b = c_mhalf.dot( np.linalg.lstsq( X.dot(c_mhalf),  xi, rcond=None)[0] ) + w_star # best possible predictor
         reg_b = LinearRegressor(init = w_b)
 
@@ -219,29 +225,38 @@ def display_risks_gamma(n = 100,
         risk_a = calculate_risk(w_star, c, reg_a.w) + sigma2
         if include_best_achievable_empirical_new:
             risk_ae = calculate_risk(w_star, c, reg_ae.w) + sigma2
-        if include_best_achievable_empirical_gl
+        if include_best_achievable_empirical_gl:
             risk_gl = calculate_risk(w_star, c, reg_gl.w) + sigma2
         risk_b = calculate_risk(w_star, c, reg_b.w) + sigma2
 
-        risks[i, :] = risk_2, risk_c, risk_ce, risk_a, risk_ae, risk_gl, risk_b
-
+        #risks[i, :] = risk_2, risk_c, risk_ce, risk_a, risk_ae, risk_gl, risk_b
+        risks_new = pd.DataFrame([[risk_2, risk_c, risk_ce, risk_a, risk_ae, risk_gl, risk_b]], columns = ['gd', 'md', 'md_e', 'achie', 'achie_e', 'gl', 'b'])
+        risks = risks.append(risks_new)
 
     # initialize plots
     fig, ax = plt.subplots()
 
     if include_gd:
-        ax.plot(gammas, risks[:, 0], 'bo', label = r'$w_{\ell_2}$')
+        #ax.plot(gammas, risks[:, 0], 'bo', label = r'$w_{\ell_2}$')
+        ax.plot(gammas, risks['gd'], 'bo', label = r'$w_{\ell_2}$')
     if include_md:
-        ax.plot(gammas, risks[:, 1], 'ro', label = r'$w_{V}$')
+        #ax.plot(gammas, risks[:, 1], 'ro', label = r'$w_{V}$')
+        ax.plot(gammas, risks['md'], 'ro', label = r'$w_{V}$')
     if include_md_empirical:
-        ax.plot(gammas, risks[:, 2], 'mo',label = r'$w_{Ve}$', markersize = 4)
+        #ax.plot(gammas, risks[:, 2], 'mo',label = r'$w_{Ve}$', markersize = 4)
+        ax.plot(gammas, risks['md_e'], 'mo',label = r'$w_{Ve}$', markersize = 4)
     if include_best_achievable:
-        ax.plot(gammas, risks[:, 3], 'co',label = r'$w_{O}$')
+        #ax.plot(gammas, risks[:, 3], 'co',label = r'$w_{O}$')
+        ax.plot(gammas, risks['achie'], 'co',label = r'$w_{O}$')
     if include_best_achievable_empirical_new:
-        ax.plot(gammas, risks[:, 4], 'yo',label = r'$w_{Oe}$', markersize = 4)
+        #ax.plot(gammas, risks[:, 4], 'yo',label = r'$w_{Oe}$', markersize = 4)
+        ax.plot(gammas, risks['achie_e'], 'yo',label = r'$w_{Oe}$', markersize = 4)
     if include_best_achievable_empirical_gl:
-        ax.plot(gammas, risks[:, 4], 'go',label = r'$w_{Ogl}$', markersize = 4)
-    ax.plot(gammas, risks[:, 5], 'ko', label = r'$w_{b}$')
+        #ax.plot(gammas, risks[:, 4], 'go',label = r'$w_{Ogl}$', markersize = 4)
+        ax.plot(gammas, risks['gl'], 'go',label = r'$w_{Ogl}$', markersize = 4)
+    #ax.plot(gammas, risks[:, 5], 'ko', label = r'$w_{b}$')
+    ax.plot(gammas, risks['b'], 'ko', label = r'$w_{b}$')
+
 
 
     ax.set_ylabel('Risk', fontsize = 'large')
@@ -251,7 +266,15 @@ def display_risks_gamma(n = 100,
 
     if savefile:
         dtstamp = str(dt.now()).replace(' ', '_').replace(':','-').replace('.','_')
-        fig.savefig(f'images/changing_gamma_n_{n}_r2_{r2}_sigma2_{sigma2}_ro_{str(ro)}_alpha_{str(alpha)}_regime_{regime}_alpha_{alpha}_source_{source_condition}_final_{dtstamp}.pdf', format = 'pdf')
+        folder_name = f'{dtstamp}_changing_gamma_empir_{empir}_n_{n}_r2_{r2}_sigma2_{sigma2}_ro_{str(ro)}_alpha_{str(alpha)}_regime_{regime}_alpha_{alpha}_source_{source_condition}'
+        filename = 'plot.pdf'
+        
+        # make dir, save plot and params
+        os.makedirs(os.path.join(plots_dir, 'linreg', folder_name))
+        fig.savefig(os.path.join(plots_dir, 'linreg', folder_name, filename), format = 'pdf')
+        with open(os.path.join(plots_dir, 'linreg', folder_name, 'params.json'), 'w') as f:
+            json.dump(saved_args, f)
+
 
     return
 
