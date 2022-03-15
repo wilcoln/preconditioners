@@ -6,7 +6,11 @@ import torch, scipy
 from numpy.random import normal
 from sklearn.covariance import LedoitWolf, GraphicalLasso
 from sklearn.model_selection import train_test_split
+from torch import nn
 from preconditioners.cov_approx.variance import var_solve
+
+import preconditioners.settings
+
 
 def sq_loss(y_pred, y):
     return np.linalg.norm(y_pred - y) ** 2
@@ -288,3 +292,15 @@ def param_gradient(y, param, grad_outputs=None):
     if grad_outputs is None:
         grad_outputs = torch.ones_like(y)
     return torch.autograd.grad(y, param, grad_outputs=grad_outputs, create_graph=True)[0]
+
+
+class SLP(nn.Module):
+        """ Single Layer Perceptron for regression. """
+
+        def __init__(self, in_channels):
+            super().__init__()
+            self.layers = nn.Sequential(nn.Linear(in_channels, 1, bias=False))
+
+        def forward(self, x):
+            """ Forward pass of the MLP. """
+            return self.layers(x)
