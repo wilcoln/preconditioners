@@ -1,53 +1,91 @@
 import unittest
 
 from torch import nn
-from torch.utils.data import random_split
+from torch.utils.data import random_split, DataLoader
 
-import settings
+from preconditioners import settings
 from preconditioners.datasets import CenteredGaussianDataset
 from preconditioners.cov_approx.impl_cov_approx import *
-from preconditioners.utils import generate_c, generate_centered_gaussian_data
+from preconditioners.utils import generate_c, SLP
 from preconditioners.optimizers import PrecondGD
 
 
 class TestPinv(unittest.TestCase):
 
-    def test_p_inv(self):
-
-        d = 30
-        c = generate_c(ro=.5, regime='autoregressive', d=d)
-
+    def setUp(self):
+        d = 10
+        train_size = 100
+        extra_size = 1000
         w_star = np.random.multivariate_normal(mean=np.zeros(d), cov=np.eye(d))
-        dataset = CenteredGaussianDataset(w_star=w_star, d=d, c=c, n=1000)
-        
-        train_size = int(0.7 * len(dataset))
-        test_size = int(0.2 * len(dataset))
-        extra_size = len(dataset) - train_size - test_size
-
-        train_dataset, test_dataset, extra_dataset = random_split(dataset, [train_size, test_size, extra_size])
+        self.c = generate_c(ro=.5, regime='autoregressive', d=d)
+        self.dataset = CenteredGaussianDataset(w_star=w_star, d=d, c=self.c, n=train_size + extra_size)
+        train_dataset, extra_dataset = random_split(self.dataset, [train_size, extra_size])
+        self.trainloader = DataLoader(train_dataset, batch_size=train_size, shuffle=True,
+                                    num_workers=settings.NUM_WORKERS)
 
         labeled_data = train_dataset[:][0].to(settings.DEVICE)
         unlabeled_data = extra_dataset[:][0].to(settings.DEVICE)
 
-        class SLP(nn.Module):
-            """ Multilayer Perceptron for regression. """
+        self.model = SLP(in_channels=self.dataset.X.shape[1])
+        self.optimizer = PrecondGD(self.model, lr=1e-2, labeled_data=labeled_data, unlabeled_data=unlabeled_data)
 
-            def __init__(self, in_size):
-                super().__init__()
-                self.layers = nn.Sequential(nn.Linear(in_size, 1, bias=False))
+    def train(self, model, trainloader, optimizer, loss_function, n_epochs, print_every=1):
+        for epoch in range(n_epochs):
+            model.train()
+            # Set current loss value
+            current_loss = 0.0
 
-            def forward(self, x):
-                """ Forward pass of the MLP. """
-                return self.layers(x)
+            # Iterate over the DataLoader for training data
+            for i, data in enumerate(trainloader, 0):
 
-        mlp = SLP(in_size=dataset.X.shape[1])
-        optimizer = PrecondGD(mlp, lr=1e-3, labeled_data=labeled_data, unlabeled_data=unlabeled_data)
+                # Get and prepare inputs
+                inputs, targets = data
+                # Set the inputs and targets to the device
+                inputs, targets = inputs.to(settings.DEVICE), targets.to(settings.DEVICE)
 
-        p_inv = optimizer._compute_p_inv()
-        
+                inputs, targets = inputs.float(), targets.float()
+                targets = targets.reshape((targets.shape[0], 1))
+
+                # Zero the gradients
+                optimizer.zero_grad()
+
+                # Perform forward pass
+                outputs = model(inputs)
+
+                # Compute loss
+                loss = loss_function(outputs, targets)
+
+                # Perform backward pass
+                loss.backward()
+
+                # Perform optimization
+                optimizer.step()
+
+                # Update statistics
+                current_loss += loss.item()
+
+            current_loss /= len(trainloader)
+
+            matrix_loss = np.linalg.norm(optimizer._compute_p_inv() - np.linalg.inv(self.c))
+
+            if epoch % print_every == 0:
+                print(f'Epoch {epoch + 1}: Train loss: {current_loss:.4f} Matrix error: {matrix_loss:.4f}')
+
+    def test_p_inv(self):
+        self.train(
+            self.model,
+            self.trainloader,
+            self.optimizer,
+            nn.MSELoss(),
+            n_epochs=10)
+
+        p_inv = self.optimizer._compute_p_inv()
+        mat_error = np.linalg.norm(p_inv - np.linalg.inv(self.c))
         self.assertTrue(
-            np.linalg.norm(p_inv - np.linalg.inv(c)) < 0.01,
-            msg=f'The error is {np.linalg.norm(p_inv - np.linalg.inv(c))} and \
+            mat_error < 0.01,
+            msg=f'The error is {mat_error} and \
             the first entries of p_inv are {p_inv[:4,:4]}\
-            while the first entries of the true matrix are {np.linalg.inv(c)[:4,:4]}'
+            while the first entries of the true matrix are {np.linalg.inv(self.c)[:4,:4]}\
+            and the first entries of X^TX/n are '
+                f'{(self.dataset.X.T @ self.dataset.X/self.dataset.X.shape[0])[:4,:4]}'
         )
