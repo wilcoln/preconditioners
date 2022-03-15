@@ -13,8 +13,8 @@ from preconditioners.optimizers import PrecondGD
 class TestPinv(unittest.TestCase):
 
     def setUp(self):
-        d = 10
-        train_size = 100
+        d = 30
+        train_size = 10
         extra_size = 1000
         w_star = np.random.multivariate_normal(mean=np.zeros(d), cov=np.eye(d))
         self.c = generate_c(ro=.5, regime='autoregressive', d=d)
@@ -27,7 +27,7 @@ class TestPinv(unittest.TestCase):
         unlabeled_data = extra_dataset[:][0].to(settings.DEVICE)
 
         self.model = SLP(in_channels=self.dataset.X.shape[1])
-        self.optimizer = PrecondGD(self.model, lr=1e-2, labeled_data=labeled_data, unlabeled_data=unlabeled_data)
+        self.optimizer = PrecondGD(self.model, lr=1e-3, labeled_data=labeled_data, unlabeled_data=unlabeled_data)
 
     def train(self, model, trainloader, optimizer, loss_function, n_epochs, print_every=1):
         for epoch in range(n_epochs):
