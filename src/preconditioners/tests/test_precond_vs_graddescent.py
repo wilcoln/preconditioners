@@ -66,7 +66,7 @@ class TestPrecondVsGradDescent(unittest.TestCase):
 
         return current_loss
 
-    def test_p_inv(self):
+    def test_precond_vs_graddescent(self):
         loss1 = self.train(
             self.model,
             self.train_dataset,

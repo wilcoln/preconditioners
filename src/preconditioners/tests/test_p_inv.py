@@ -12,21 +12,10 @@ from preconditioners.optimizers import PrecondGD
 
 class TestPinv(unittest.TestCase):
 
-<<<<<<< HEAD
-    def test_p_inv(self):
-
-        d = 10
-        train_size = 10
-        test_size = 2
-        extra_size = 2000
-        c = generate_c(ro=.5, regime='autoregressive', d=d)
-
-=======
     def setUp(self):
         d = 30
         train_size = 10
         extra_size = 1000
->>>>>>> 3e7fbea436d0cee21b73439b5fc59cdc37e9f270
         w_star = np.random.multivariate_normal(mean=np.zeros(d), cov=np.eye(d))
         self.c = generate_c(ro=.5, regime='autoregressive', d=d)
         self.dataset = CenteredGaussianDataset(w_star=w_star, d=d, c=self.c, n=train_size + extra_size)
@@ -89,12 +78,7 @@ class TestPinv(unittest.TestCase):
             mat_error < 0.01,
             msg=f'The error is {mat_error} and \
             the first entries of p_inv are {p_inv[:4,:4]}\
-<<<<<<< HEAD
-            while the first entries of the true matrix are {np.linalg.inv(c)[:4,:4]}\
-            and the first entries of X^TX/n are {torch.inverse((dataset.X).T @ (dataset.X)/(train_size+test_size+extra_size))[:4,:4]}'
-=======
             while the first entries of the true matrix are {np.linalg.inv(self.c)[:4,:4]}\
             and the first entries of X^TX/n are '
                 f'{(self.dataset.X.T @ self.dataset.X/self.dataset.X.shape[0])[:4,:4]}'
->>>>>>> 3e7fbea436d0cee21b73439b5fc59cdc37e9f270
         )
