@@ -98,12 +98,11 @@ class TestPinv(unittest.TestCase):
         true_p_inv += (1 / self.unlabeled_data.shape[0]) * self.unlabeled_data.T @ self.unlabeled_data
         true_p_inv = torch.inverse(true_p_inv)
 
-        mat_error = torch.linalg.norm(p_inv - true_p_inv, ord=np.inf) # max(sum(abs(p_inv - c_inv), axis=1))
-        tol_error_in_each_entry = 0.3
-        tol = p_inv.shape[0]*tol_error_in_each_entry
+        mat_error = torch.norm(p_inv - true_p_inv)
+
         self.assertTrue(
-            mat_error < tol,
-            msg=f"The error is {mat_error} and it should be less than {tol}, \
+            mat_error < 0.01,
+            msg=f"The error is {mat_error} and \
             the first entries of p_inv are {p_inv[:4,:4]}\
             while the first entries of X^TX/n + X'^TX'/n' are '{true_p_inv[:4,:4]}"
         )
