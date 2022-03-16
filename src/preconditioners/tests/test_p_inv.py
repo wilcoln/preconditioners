@@ -19,13 +19,14 @@ class TestPinv(unittest.TestCase):
         w_star = np.random.multivariate_normal(mean=np.zeros(d), cov=np.eye(d))
         self.c = generate_c(ro=.5, regime='autoregressive', d=d)
         self.dataset = CenteredGaussianDataset(w_star=w_star, d=d, c=self.c, n=train_size + extra_size)
-        self.train_dataset, extra_dataset = random_split(self.dataset, [train_size, extra_size])
+        self.train_dataset, self.extra_dataset = random_split(self.dataset, [train_size, extra_size])
 
-        labeled_data = self.train_dataset[:][0].double().to(settings.DEVICE)
-        unlabeled_data = extra_dataset[:][0].double().to(settings.DEVICE)
+        self.labeled_data = self.train_dataset[:][0].double().to(settings.DEVICE)
+        self.unlabeled_data = self.extra_dataset[:][0].double().to(settings.DEVICE)
 
         self.model = SLP(in_channels=self.dataset.X.shape[1]).double().to(settings.DEVICE)
-        self.optimizer = PrecondGD(self.model, lr=1e-3, labeled_data=labeled_data, unlabeled_data=unlabeled_data)
+        self.optimizer = PrecondGD(self.model, lr=1e-3, labeled_data=self.labeled_data,
+                                   unlabeled_data=self.unlabeled_data)
 
     def train(self, model, train_dataset, optimizer, loss_function, n_epochs, print_every=1):
         for epoch in range(n_epochs):
@@ -64,21 +65,42 @@ class TestPinv(unittest.TestCase):
             if epoch % print_every == 0:
                 print(f'Epoch {epoch + 1}: Train loss: {current_loss:.4f} Matrix error: {matrix_loss:.4f}')
 
-    def test_p_inv(self):
+    def test_p_inv_against_c_inv(self):
         self.train(
             self.model,
             self.train_dataset,
             self.optimizer,
             nn.MSELoss(),
-            n_epochs=10)
+            n_epochs=1)
 
         p_inv = self.optimizer._compute_p_inv()
-        mat_error = np.linalg.norm(p_inv - np.linalg.inv(self.c))
+        c_inv = np.linalg.inv(self.c)
+        mat_error = np.linalg.norm(p_inv - c_inv)
         self.assertTrue(
             mat_error < 0.01,
-            msg=f'The error is {mat_error} and \
+            msg=f"The error is {mat_error} and \
             the first entries of p_inv are {p_inv[:4,:4]}\
-            while the first entries of the true matrix are {np.linalg.inv(self.c)[:4,:4]}\
-            and the first entries of X^TX/n are '
-                f'{(self.dataset.X.T @ self.dataset.X/self.dataset.X.shape[0])[:4,:4]}'
+            while the first entries of c are {c_inv[:4,:4]}")
+
+    def test_p_inv_against_true_p_inv(self):
+        self.train(
+                self.model,
+                self.train_dataset,
+                self.optimizer,
+                nn.MSELoss(),
+                n_epochs=1)
+
+        p_inv = self.optimizer._compute_p_inv()
+
+        true_p_inv = (1 / self.labeled_data.shape[0]) * self.labeled_data.T @ self.labeled_data
+        true_p_inv += (1 / self.unlabeled_data.shape[0]) * self.unlabeled_data.T @ self.unlabeled_data
+        true_p_inv = torch.inverse(true_p_inv)
+
+        mat_error = torch.norm(p_inv - true_p_inv)
+
+        self.assertTrue(
+            mat_error < 0.01,
+            msg=f"The error is {mat_error} and \
+            the first entries of p_inv are {p_inv[:4,:4]}\
+            while the first entries of X^TX/n + X'^TX'/n' are '{true_p_inv[:4,:4]}"
         )
