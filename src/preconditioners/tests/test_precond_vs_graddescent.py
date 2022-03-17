@@ -1,8 +1,7 @@
 import unittest
 
-from icecream import ic
 from torch import nn
-from torch.utils.data import random_split, DataLoader
+from torch.utils.data import random_split
 
 from preconditioners import settings
 from preconditioners.datasets import CenteredGaussianDataset
@@ -32,8 +31,6 @@ class TestPrecondVsGradDescent(unittest.TestCase):
     def train(self, model, train_dataset, optimizer, loss_function, n_epochs, print_every=1):
         for epoch in range(n_epochs):
             model.train()
-            # Set current loss value
-            current_loss = 0.0
 
             # Get and prepare inputs
             inputs, targets = train_dataset[:]
@@ -57,9 +54,7 @@ class TestPrecondVsGradDescent(unittest.TestCase):
             optimizer.step()
 
             # Update statistics
-            current_loss += loss.item()
-
-            current_loss /= len(train_dataset)
+            current_loss = loss.item()
 
             if epoch % print_every == 0:
                 print(f'Epoch {epoch + 1}: Train loss: {current_loss:.4f}')

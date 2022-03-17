@@ -7,6 +7,7 @@ from numpy.random import normal
 from sklearn.covariance import LedoitWolf, GraphicalLasso
 from sklearn.model_selection import train_test_split
 from torch import nn
+import torch.nn.functional as F
 from preconditioners.cov_approx.variance import var_solve
 
 import preconditioners.settings
@@ -304,3 +305,36 @@ class SLP(nn.Module):
 
         def reset_parameters(self):
             return self.layer.reset_parameters()
+
+
+class MLP(nn.Module):
+    """ Single Layer Perceptron for regression. """
+
+    def __init__(self, in_channels, num_layers=2, hidden_layer_size=100):
+        super().__init__()
+        self.in_layer = nn.Linear(in_channels, hidden_layer_size, bias=False)
+        self.hidden_layers = nn.ModuleList([
+            nn.Linear(hidden_layer_size, hidden_layer_size)
+            for _ in range(num_layers - 2)
+        ])
+        self.output_layer = nn.Linear(hidden_layer_size, 1, bias=False)
+
+    def forward(self, x):
+        """ Forward pass of the MLP. """
+        x = self.in_layer(x)
+        x = F.relu(x)
+        for layer in self.hidden_layers:
+            x = layer(x)
+            x = F.relu(x)
+        x = self.output_layer(x)
+        return x
+
+    def reset_parameters(self):
+        self.in_layer.reset_parameters()
+        for layer in self.hidden_layers:
+            layer.reset_parameters()
+        self.output_layer.reset_parameters()
+
+
+
+
