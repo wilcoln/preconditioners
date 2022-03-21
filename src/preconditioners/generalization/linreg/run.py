@@ -8,7 +8,7 @@ if __name__ == '__main__':
 
 
     # for smaller run time (but noisier plot) decrease n
-    display_risks_gamma(n = 50,
+    display_risks_gamma(n = 200,
                         r2=1,
                         sigma2=1,
 
@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
                         source_condition = 'id',
 
-                        empir = 'gl',
+                        empir = 'variance_gl',
                         alpha = 0.1,
 
                         include_gd = True,

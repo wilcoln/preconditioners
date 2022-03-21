@@ -139,7 +139,7 @@ def generate_m(c, source_condition='id'):
     return m
 
 
-def generate_true_parameter(n=200, d=600, r2=5, m=None):
+def generate_true_parameter(d=600, r2=5, m=None):
     if m is None:
         m = np.eye(d)
 

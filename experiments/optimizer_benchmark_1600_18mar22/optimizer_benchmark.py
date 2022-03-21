@@ -11,9 +11,9 @@ from icecream import ic
 from preconditioners import settings
 from preconditioners.datasets import CenteredGaussianDataset
 from preconditioners.optimizers import GradientDescent, PrecondGD
+from preconditioners.utils import generate_true_parameter, generate_c, MLP
 # Eduard comment: The way we will test it, these are going to be the sizes:
 # len(test_data) < len(train_data) < no_of_parameters_of_the_model << len(extra_data)
-from utils import generate_c, MLP
 
 
 # Helper functions
@@ -88,18 +88,18 @@ def test(model, test_data, loss_function):
     return loss.item()
 
 
-def generate_data(ro):
-    global d, train_size, test_size, extra_size
-    w_star = np.random.multivariate_normal(mean=np.zeros(d), cov=np.eye(d))
-    c = generate_c(ro=ro, regime='autoregressive', d=d)
-    dataset = CenteredGaussianDataset(w_star=w_star, d=d, c=c, n=train_size + test_size + extra_size)
+def generate_data(sigma2):
+    global d, r2, ro, train_size, test_size, extra_size
+    w_star = generate_true_parameter(d, r2, m = np.eye(d))
+    c = generate_c(ro, regime='autoregressive', d=d)
+    dataset = CenteredGaussianDataset(w_star=w_star, d=d, c=c, n=train_size + test_size + extra_size, sigma2=sigma2)
     train_data, test_data, extra_data = random_split(dataset, [train_size, test_size, extra_size])
 
     return train_data, test_data, extra_data
 
 
 # Fix parameters
-tol = 1e-2
+tol = 1e-3 # Eduard commment: This needs to be a lot smaller later on
 lr = 1e-1
 extra_size = 1000
 d = 4
@@ -109,18 +109,20 @@ test_size = int(.5 * train_size)
 loss_function = torch.nn.MSELoss()
 model = MLP(in_channels=d, num_layers=2, hidden_layer_size=num_params//(1 + d)).double().to(settings.DEVICE)
 max_iter = 1000  # float('inf')
+r2 = 1 # signal
+ro = 0.5
 
 
 # Fix variables
-noise_variances = np.linspace(0, .5, 10)
+noise_variances = np.linspace(1, 3, 9)
 optimizer_classes = [GradientDescent, PrecondGD]
 
 
 test_errors = defaultdict(list)
-for ro in noise_variances:
+for sigma2 in noise_variances:
     # Generate data
-    train_data, test_data, extra_data = generate_data(ro=ro)
-    print(f'Noise variance: {ro}')
+    train_data, test_data, extra_data = generate_data(sigma2=sigma2)
+    print(f'Noise variance: {sigma2}')
     for optim_cls in optimizer_classes:
         print(f'\n\nOptimizer: {optim_cls.__name__}')
         # Instantiate the optimizer
@@ -135,6 +137,8 @@ for ro in noise_variances:
 # Plot the results
 for optim_cls in optimizer_classes:
     plt.plot(noise_variances, test_errors[optim_cls.__name__], label=optim_cls.__name__)
+
+# Eduard Comment: Add plot saving. Look at the end of preconditioners/generelization/linreg/plot_changing_gamma.py to see how I do it.
 
 plt.xlabel('Noise variance')
 plt.ylabel('Test loss')

@@ -178,7 +178,7 @@ def display_risks_gamma(n = 100,
         m = generate_m(c, source_condition = source_condition)
 
         # generate true parameter
-        w_star = generate_true_parameter(n, d, r2, m = m)
+        w_star = generate_true_parameter(d, r2, m = m)
 
         # generate data
         X, y, xi = generate_centered_gaussian_data(w_star, c, n, d, sigma2)
@@ -223,15 +223,13 @@ def display_risks_gamma(n = 100,
         risk_c = calculate_risk(w_star, c, reg_c.w) + sigma2
         risk_ce = calculate_risk(w_star, c, reg_ce.w) + sigma2
         risk_a = calculate_risk(w_star, c, reg_a.w) + sigma2
-        if include_best_achievable_empirical_new:
-            risk_ae = calculate_risk(w_star, c, reg_ae.w) + sigma2
-        if include_best_achievable_empirical_gl:
-            risk_gl = calculate_risk(w_star, c, reg_gl.w) + sigma2
+        risk_ae = calculate_risk(w_star, c, reg_ae.w) + sigma2 if include_best_achievable_empirical_new else 0
+        risk_gl = calculate_risk(w_star, c, reg_gl.w) + sigma2 if include_best_achievable_empirical_gl else 0
         risk_b = calculate_risk(w_star, c, reg_b.w) + sigma2
 
         #risks[i, :] = risk_2, risk_c, risk_ce, risk_a, risk_ae, risk_gl, risk_b
         risks_new = pd.DataFrame([[risk_2, risk_c, risk_ce, risk_a, risk_ae, risk_gl, risk_b]], columns = ['gd', 'md', 'md_e', 'achie', 'achie_e', 'gl', 'b'])
-        risks = risks.append(risks_new)
+        risks = pd.concat([risks, risks_new])
 
     # initialize plots
     fig, ax = plt.subplots()
@@ -266,7 +264,7 @@ def display_risks_gamma(n = 100,
 
     if savefile:
         dtstamp = str(dt.now()).replace(' ', '_').replace(':','-').replace('.','_')
-        folder_name = f'{dtstamp}_changing_gamma_empir_{empir}_n_{n}_r2_{r2}_sigma2_{sigma2}_ro_{str(ro)}_alpha_{str(alpha)}_regime_{regime}_alpha_{alpha}_source_{source_condition}'
+        folder_name = f'empir_{empir}_{dtstamp}_changing_gamma_n_{n}_r2_{r2}_sigma2_{sigma2}_ro_{str(ro)}_alpha_{str(alpha)}_regime_{regime}_alpha_{alpha}_source_{source_condition}'
         filename = 'plot.pdf'
         
         # make dir, save plot and params
