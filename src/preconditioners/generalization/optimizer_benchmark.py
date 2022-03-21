@@ -72,7 +72,7 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
 
         if epoch % print_every == 0:
             print(f'Epoch {epoch}: Train loss: {current_loss:.4f}')
-
+    print(f'Epoch {epoch}: Train loss: {current_loss:.4f}')
     return current_loss
 
 
