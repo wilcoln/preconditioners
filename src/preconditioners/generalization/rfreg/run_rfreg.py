@@ -9,9 +9,9 @@ if __name__ == '__main__':
 
     # for smaller run time (but noisier plot) decrease n
     display_risks_gamma_rf(n = 100,
-                        n_test = 1000,
-                        n_extra = 1000,
-                        n_benchmark = 100,
+                        n_extra = 1,
+                        n_benchmark = 3000,
+                        n_test = 200,
                         r2=1,
                         sigma2=1,
 
@@ -27,7 +27,7 @@ if __name__ == '__main__':
                         fix_norm_of_theta = True,
                         fix_norm_of_x = True,
 
-                        empir = 'extra',
+                        empir = 'test',
                         alpha = 0.2,
                         mu = 0,
                         geno_tol = 1e-5,

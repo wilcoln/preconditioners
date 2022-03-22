@@ -1,0 +1,3 @@
+Noticed that, if the test data is used to estimate the covariance matrix, then the test error is slightly smaller!.
+Look at experiment_extra_2022-03-22_10-37...
+Could this actually be used to a benefit?

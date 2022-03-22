@@ -12,9 +12,9 @@ from datetime import datetime as dt
 
 
 def display_risks_gamma_rf(n = 200,
-                        n_test = 100,
                         n_extra = 500,
                         n_benchmark = 500,
+                        n_test = 100,
                         r2=1,
                         sigma2=1,
 
@@ -165,15 +165,15 @@ def display_risks_gamma_rf(n = 200,
 
     # generate data from a normal distribution
     X, y, xi = generate_centered_gaussian_data(w_star, c, n, d, sigma2, fix_norm_of_x)
-    print('data generated')
+    print('training data generated')
 
     # generate testing data to compute test error on
     X_test, y_test, xi_test = generate_centered_gaussian_data(w_star, c, n_test, d, sigma2, fix_norm_of_x)
-    print('extra data generated')
+    print('test data generated')
 
     # generate benchmark data to have as a reference of performance (has to be different than testing data)
     X_benchmark, y_benchmark, xi_benchmark = generate_centered_gaussian_data(w_star, c, n_benchmark, d, sigma2, fix_norm_of_x)
-    print('extra data generated')
+    print('benchmark data generated')
 
      # generate extra data to estimate covariance matrix better
     X_extra, y_extra, xi_extra = generate_centered_gaussian_data(w_star, c, n_extra, d, sigma2, fix_norm_of_x)
@@ -208,8 +208,12 @@ def display_risks_gamma_rf(n = 200,
         if include_best_achievable_empirical_new:
             #TODO: right now we still estimate cov_zx from extra data (but not cov_z). Change this in the future.
             Z_extra = reg_2.return_Z(X_extra)
-            cov_zx = Z_extra.T.dot(X_extra)/n_extra
-            cov_z_inv_e = generate_c_inv_empir(Z, empir, alpha, mu, geno_tol, X_extra = Z_extra)
+            Z_test = reg_2.return_Z(X_test)
+            if empir == 'extra':
+                cov_zx = Z_extra.T.dot(X_extra)/n_extra
+            elif empir == 'test':
+                cov_zx = Z_test.T.dot(X_test)/n_test
+            cov_z_inv_e = generate_c_inv_empir(Z, empir, alpha, mu, geno_tol, X_extra = Z_extra, X_test = Z_test)
             print('covariance matrix estimated')
             w_oe = compute_best_achievable_interpolator_rf(X=X, Z=Z, y=y, cov_z_inv=cov_z_inv_e, cov_zx=cov_zx, m=m, snr=snr_estimation, crossval_param=crossval_param)
             reg_oe = RandomFeaturesRegressor(init_N = N, init_d = d, init_theta = theta, fix_norm_of_theta = fix_norm_of_theta, init_w = w_oe)
@@ -241,6 +245,7 @@ def display_risks_gamma_rf(n = 200,
 
     if savefile:
         dtstamp = str(dt.now()).replace(' ', '_').replace(':','-').replace('.','_')
+        #folder_name = dtstamp + f'_{empir}_' + '_'.join([f'{k}={v}' for k, v in saved_args.items()]) filename too long
         folder_name = f'empir_{empir}_{dtstamp}_changing_gamma_n_{n}_r2_{r2}_sigma2_{sigma2}_ro_{str(ro)}_alpha_{str(alpha)}_regime_{regime}_alpha_{alpha}_source_{source_condition}'
         filename = 'plot.pdf'
 

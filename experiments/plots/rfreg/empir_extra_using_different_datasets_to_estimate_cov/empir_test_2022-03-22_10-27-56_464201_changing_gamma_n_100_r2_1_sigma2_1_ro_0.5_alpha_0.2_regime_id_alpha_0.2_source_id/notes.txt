@@ -1,0 +1,4 @@
+This is exactly the same as the empir_test_2022-03-22_10_37 experiment, but in addition,
+the covariance in a_oe was computed using test_data + training_data, while in the empir_test_2022-03-22_10_37
+experiment, the covariance was computed using only the extra_data. Here the effects empir_test_2022-03-22_10_37 and empir_extra_2022-03-22_10_46 were combined and we see slightly better 
+results than each phenomen individually.

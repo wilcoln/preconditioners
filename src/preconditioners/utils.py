@@ -188,7 +188,7 @@ def generate_c(ro=0.25,
     return c
 
 
-def generate_c_inv_empir(X, empir, alpha=0.25, mu = 0.1, geno_tol = 1e-6, X_extra = None):
+def generate_c_inv_empir(X, empir, alpha=0.25, mu = 0.1, geno_tol = 1e-6, X_extra = None, X_test = None):
 
     if empir == 'lw':
         lw = LedoitWolf(assume_centered=True).fit(X)
@@ -223,15 +223,20 @@ def generate_c_inv_empir(X, empir, alpha=0.25, mu = 0.1, geno_tol = 1e-6, X_extr
         assert X_extra is not None, 'need to provide extra data'
         assert d_extra == d, 'extra_data needs to have the same dimension as X'
         return np.linalg.inv( (X.T.dot(X) + X_extra.T.dot(X_extra)) / (n + n_extra) + mu*np.eye(d) )
+    
+    elif empir == 'test':
+        n, d = X.shape
+        n_test, d_test = X_test.shape
+        assert X_test is not None, 'need to provide test data'
+        assert d_test == d, 'test_data needs to have the same dimension as X'
+        return np.linalg.inv( (X.T.dot(X) + X_test.T.dot(X_test)) / (n + n_test) + mu*np.eye(d) )
 
     elif empir == 'variance_extra':
-        # Note, this does not use X in the computation only X_extra
         n, d = X.shape
         n_extra, d_extra = X_extra.shape
         assert X_extra is not None, 'need to provide extra data'
         assert d_extra == d, 'extra_data needs to have the same dimension as X'
         cov_empir = X.T.dot(X) / n
-        #TODO: fix this
         B = ( X.T.dot(X) + X_extra.T.dot(X_extra) ) / (n + n_extra) + mu*np.eye(d)
         C_init = initialize_C(cov_empir = X.T.dot(X)/n, e_1=0.1, e_2=0.5, ro=0.2)
         _, C = var_solve(B = B, X=X, CInit = C_init, np=np, geno_tol=geno_tol)

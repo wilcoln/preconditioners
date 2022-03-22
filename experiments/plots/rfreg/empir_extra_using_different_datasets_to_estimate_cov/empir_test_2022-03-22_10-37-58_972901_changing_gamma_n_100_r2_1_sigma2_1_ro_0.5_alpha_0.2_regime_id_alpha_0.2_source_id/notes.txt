@@ -1,0 +1,5 @@
+In this file the a_o and a_oe were computed in exactly the same way (i.e. estimating the covariance directly using 
+large amounts of unlabeled data without damping) but the only difference was that
+a_oe used test data (i.e. data on which also the test error was computed) for estimating the covariance, 
+while a_o used a held-out extra data to estimate the covariance. We see that using the test data 
+slightly increases performance.

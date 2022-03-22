@@ -1,0 +1,4 @@
+The covariance in a_oe was computed using extra_data + training_data (3100), while the covariance in a_o 
+was computed using only the benchmark_data (3000). The first performed better. Both were tested on separate test data.
+From this we may conclude that using train_data + extra_data is better than just using extra_data (benchmark data).
+However, this is probably only because 3100 > 3000, empir_extra_2022-03-22_11-13-... confirms this.

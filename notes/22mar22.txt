@@ -1,2 +1,0 @@
-Noticed that, if the test data is used to estimate the covariance matrix, then the test error is smaller!.
-Could this actually be used to a benefit?

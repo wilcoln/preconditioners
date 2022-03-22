@@ -264,6 +264,7 @@ def display_risks_gamma(n = 100,
 
     if savefile:
         dtstamp = str(dt.now()).replace(' ', '_').replace(':','-').replace('.','_')
+        #folder_name = dtstamp + f'_{empir}_' + '_'.join([f'{k}={v}' for k, v in saved_args.items()]) # filename too long
         folder_name = f'empir_{empir}_{dtstamp}_changing_gamma_n_{n}_r2_{r2}_sigma2_{sigma2}_ro_{str(ro)}_alpha_{str(alpha)}_regime_{regime}_alpha_{alpha}_source_{source_condition}'
         filename = 'plot.pdf'
         
