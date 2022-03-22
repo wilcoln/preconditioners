@@ -30,6 +30,7 @@ def display_risks_gamma(n = 100,
 
                         empir = 'variance_gl',
                         alpha = 0.25,
+                        geno_tol = 1e-6,
 
                         include_gd = False,
                         include_md = False,
@@ -149,7 +150,6 @@ def display_risks_gamma(n = 100,
         '''
 
     saved_args = locals()
-
     snr = r2/sigma2
 
     # generate sequence of gammas for plotting
@@ -185,7 +185,7 @@ def display_risks_gamma(n = 100,
         print('data generated')
 
         # generate empirical estimate of the covariance matrix
-        c_inv_e = generate_c_inv_empir(X, empir, alpha)
+        c_inv_e = generate_c_inv_empir(X, empir, alpha, geno_tol)
         print('covariance matrix estimated')
 
         # initialize models

@@ -91,14 +91,14 @@ class GenoNLP:
         g_ = g_0.reshape(-1)
         return f_, g_
 
-def var_solve(B, X, CInit, np):
+def var_solve(B, X, CInit, np, geno_tol = 1e-6):
     start = timer()
     NLP = GenoNLP(B, X, CInit, np)
     x0 = NLP.getStartingPoint()
     lb = NLP.getLowerBounds()
     ub = NLP.getUpperBounds()
     # These are the standard solver options, they can be omitted.
-    options = {'eps_pg' : 1E-4,
+    options = {'eps_pg' : geno_tol,
                'max_iter' : 3000,
                'm' : 10,
                'ls' : 0,

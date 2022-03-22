@@ -191,10 +191,7 @@ class PrecondGD(Optimizer):
         stacked_labeled_grads = torch.stack([grad @ grad.T for grad in labeled_grad_list])
         stacked_unlabeled_grads = torch.stack([grad @ grad.T for grad in unlabeled_grad_list])
 
-        p = (1 / labeled_data.shape[0]) * torch.sum(stacked_labeled_grads, 0)
-        p += (1 / unlabeled_data.shape[0]) * torch.sum(stacked_unlabeled_grads, 0)
-
-        # Eduard comment: I think it is ok. I will write a short unittest which the p_inv function 
-        # should satisfy
+        p = torch.sum(stacked_labeled_grads, 0) + torch.sum(stacked_unlabeled_grads, 0)
+        p *= 1 / (labeled_data.shape[0] + unlabeled_data.shape[0])
 
         return torch.inverse(p)

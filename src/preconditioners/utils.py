@@ -1,3 +1,4 @@
+from mimetypes import init
 import warnings
 
 import numpy as np
@@ -152,7 +153,6 @@ def generate_true_parameter(d=600, r2=5, m=None):
 
 def generate_c(ro=0.25,
                regime='id',
-               n=200,
                d=600,
                strong_feature=1,
                strong_feature_ratio=1 / 2,
@@ -188,10 +188,9 @@ def generate_c(ro=0.25,
     return c
 
 
-def generate_c_inv_empir(X, empir, alpha=0.25):
+def generate_c_inv_empir(X, empir, alpha=0.25, mu = 0.1, geno_tol = 1e-6, X_extra = None):
 
     if empir == 'lw':
-
         lw = LedoitWolf(assume_centered=True).fit(X)
         c_inv_e = lw.precision_
 
@@ -202,24 +201,57 @@ def generate_c_inv_empir(X, empir, alpha=0.25):
     elif empir == 'variance_gl':
         # compute glasso
         gl = GraphicalLasso(assume_centered=True, alpha=alpha, tol=1e-4).fit(X)
-        cov_gl = gl.covariance_
+        B = gl.covariance_
 
         n, d = X.shape
         cov_empir = X.T.dot(X) / n
-        cov_inv = np.linalg.inv(cov_empir + 0.1 * np.eye(d))
-        C_init = scipy.linalg.cholesky(cov_inv) + 0.5 * generate_c(ro=0.2,
-                                                                regime='autoregressive',
-                                                                n=n,
-                                                                d=d,
-                                                                )
+        C_init = initialize_C(cov_empir = cov_empir, e_1=0.1, e_2=0.5, ro=0.2)
+        _, C = var_solve(B = B, X=X, CInit = C_init, np=np, geno_tol=geno_tol)
+        c_inv_e = C.dot(C.T)
 
-        _, C = var_solve(B = cov_gl, X=X, CInit = C_init, np=np)
+    elif empir == 'variance_id':
+        n, d = X.shape
+        B = np.eye(d)        
+        cov_empir = X.T.dot(X) / n
+        C_init = initialize_C(cov_empir = cov_empir, e_1=0.1, e_2=0.5, ro=0.2)
+        _, C = var_solve(B = B, X=X, CInit = C_init, np=np, geno_tol = geno_tol)
+        c_inv_e = C.dot(C.T)
+    
+    elif empir == 'extra':
+        n, d = X.shape
+        n_extra, d_extra = X_extra.shape
+        assert X_extra is not None, 'need to provide extra data'
+        assert d_extra == d, 'extra_data needs to have the same dimension as X'
+        return np.linalg.inv( (X.T.dot(X) + X_extra.T.dot(X_extra)) / (n + n_extra) + mu*np.eye(d) )
+
+    elif empir == 'variance_extra':
+        # Note, this does not use X in the computation only X_extra
+        n, d = X.shape
+        n_extra, d_extra = X_extra.shape
+        assert X_extra is not None, 'need to provide extra data'
+        assert d_extra == d, 'extra_data needs to have the same dimension as X'
+        cov_empir = X.T.dot(X) / n
+        #TODO: fix this
+        B = ( X.T.dot(X) + X_extra.T.dot(X_extra) ) / (n + n_extra) + mu*np.eye(d)
+        C_init = initialize_C(cov_empir = X.T.dot(X)/n, e_1=0.1, e_2=0.5, ro=0.2)
+        _, C = var_solve(B = B, X=X, CInit = C_init, np=np, geno_tol=geno_tol)
         c_inv_e = C.dot(C.T)
         
     else:
         raise AssertionError('specify regime of empirical approximation')
 
     return c_inv_e
+
+
+def initialize_C(cov_empir, e_1=0.1, e_2=0.5, ro=0.2):
+    #TODO: initializing at something which I don't have to invert is probably not the best idea better
+    d = cov_empir.shape[0]
+    cov_inv = np.linalg.inv(cov_empir + e_1 * np.eye(d))
+    C_init = scipy.linalg.cholesky(cov_inv) + e_2 * generate_c(ro=0.2,
+                                                                regime='autoregressive',
+                                                                d=d,
+                                                                )
+    return C_init                                                                
 
 
 def generate_centered_gaussian_data(w_star, c, n=200, d=600, sigma2=1, fix_norm_of_x=False):

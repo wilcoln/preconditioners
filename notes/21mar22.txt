@@ -1,0 +1,4 @@
+1. From the variance_cov_approx notebooks and then generalization experiments it seems that the generalization
+is nearly identical to that of just using the inverse of \widetilde{\Sigma} that is used in the 
+variance approximation algorithms, even though the resulting matrix (of the converged variance approximation algorithm)
+is different from the inverse of \widetilde{\Sigma}.

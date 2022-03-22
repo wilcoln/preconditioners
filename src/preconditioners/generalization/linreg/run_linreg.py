@@ -8,9 +8,9 @@ if __name__ == '__main__':
 
 
     # for smaller run time (but noisier plot) decrease n
-    display_risks_gamma(n = 200,
+    display_risks_gamma(n = 100,
                         r2=1,
-                        sigma2=1,
+                        sigma2=5,
 
                         start_gamma = 1.4,
                         end_gamma = 4,
@@ -22,6 +22,7 @@ if __name__ == '__main__':
 
                         empir = 'variance_gl',
                         alpha = 0.1,
+                        geno_tol=1e-4,
 
                         include_gd = True,
                         include_md = False,
