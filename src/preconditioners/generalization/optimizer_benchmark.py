@@ -1,7 +1,6 @@
 """ Compare different optimizers and plot the results."""
 import os
 import json
-from argparse import Namespace
 from collections import defaultdict
 
 import numpy as np
@@ -9,13 +8,12 @@ import torch
 from torch.utils.data import random_split
 import matplotlib.pyplot as plt
 
-from icecream import ic
 
 from paths import plots_dir
 from preconditioners import settings
 from preconditioners.datasets import CenteredGaussianDataset
 from preconditioners.optimizers import GradientDescent, PrecondGD
-from preconditioners.utils import generate_true_parameter, generate_c, MLP
+from preconditioners.utils import generate_true_parameter, generate_c, SLP
 from datetime import datetime as dt
 
 
@@ -108,20 +106,21 @@ def generate_data(sigma2):
 # Fix parameters
 tol = 1e-3  # Eduard commment: This needs to be a lot smaller later on
 lr = 1e-1
-extra_size = 100
-d = 4
+extra_size = 1000
 num_params = int(.1 * extra_size)
 train_size = int(.5 * num_params)
 test_size = int(.5 * train_size)
 loss_function = torch.nn.MSELoss()
-num_layers = 2
-model = MLP(in_channels=d, num_layers=num_layers, hidden_layer_size=num_params // (1 + d)).double().to(settings.DEVICE)
+d = num_params
+# num_layers = 2
+# model = MLP(in_channels=d, num_layers=num_layers, hidden_layer_size=num_params // (1 + d)).double().to(settings.DEVICE)
+model = SLP(in_channels=num_params).double().to(settings.DEVICE)
 max_iter = 1000  # float('inf')
 r2 = 1  # signal
 ro = 0.5
 
 # Fix variables
-noise_variances = np.linspace(1, 3, 9)
+noise_variances = np.linspace(1, 10, 5)
 optimizer_classes = [GradientDescent, PrecondGD]
 
 test_errors = defaultdict(list)
@@ -142,7 +141,7 @@ for sigma2 in noise_variances:
 
 # Plot the results
 for optim_cls in optimizer_classes:
-    plt.plot(noise_variances, test_errors[optim_cls.__name__], label=optim_cls.__name__)
+    plt.scatter(noise_variances, test_errors[optim_cls.__name__], label=optim_cls.__name__)
 
 # Eduard Comment: Add plot saving. Look at the end of preconditioners/generelization/linreg/plot_changing_gamma.py to see how I do it.
 plt.xlabel('Noise variance')
@@ -161,7 +160,7 @@ params_dict = {
     'train_size': train_size,
     'test_size': test_size,
     'loss_function': str(loss_function),
-    'num_layers': num_layers,
+    # 'num_layers': num_layers,
     'max_iter': max_iter,
     'r2': r2,
     'ro': ro,

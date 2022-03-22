@@ -332,13 +332,17 @@ def param_gradient(y, param, grad_outputs=None):
 class SLP(nn.Module):
         """ Single Layer Perceptron for regression. """
 
-        def __init__(self, in_channels):
+        def __init__(self, in_channels, activation=False):
             super().__init__()
+            self.activation = activation
             self.layer = nn.Linear(in_channels, 1, bias=False)
 
         def forward(self, x):
             """ Forward pass of the MLP. """
-            return self.layer(x)
+            x = self.layer(x)
+            if self.activation:
+                return F.relu(x)
+            return x
 
         def reset_parameters(self):
             return self.layer.reset_parameters()
