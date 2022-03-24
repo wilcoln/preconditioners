@@ -1,10 +1,12 @@
 """ Compare different optimizers and plot the results."""
+import math
 import os
 import json
 from collections import defaultdict
 
 import numpy as np
 import torch
+from icecream import ic
 from torch.utils.data import random_split
 import matplotlib.pyplot as plt
 
@@ -13,7 +15,7 @@ from paths import plots_dir
 from preconditioners import settings
 from preconditioners.datasets import CenteredGaussianDataset
 from preconditioners.optimizers import GradientDescent, PrecondGD
-from preconditioners.utils import generate_true_parameter, generate_c, SLP
+from preconditioners.utils import generate_true_parameter, generate_c, SLP, MLP
 from datetime import datetime as dt
 
 
@@ -111,16 +113,27 @@ num_params = int(.1 * extra_size)
 train_size = int(.5 * num_params)
 test_size = int(.5 * train_size)
 loss_function = torch.nn.MSELoss()
-d = num_params
-# num_layers = 2
-# model = MLP(in_channels=d, num_layers=num_layers, hidden_layer_size=num_params // (1 + d)).double().to(settings.DEVICE)
-model = SLP(in_channels=num_params).double().to(settings.DEVICE)
+d = 10
+num_layers = 1
+
+if num_layers == 1:
+    d = num_params
+    model = SLP(in_channels=num_params).double().to(settings.DEVICE)
+else:
+    if num_layers == 2:
+        h = num_params // (1 + d)
+    else:
+        hidden_layers = num_layers - 2
+        h = int((-(1 + d) + math.sqrt((1 + d)**2 + 4*hidden_layers*num_params)) / (2*hidden_layers))
+
+    model = MLP(in_channels=d, num_layers=num_layers, hidden_layer_size=h).double().to(settings.DEVICE)
+
 max_iter = 1000  # float('inf')
 r2 = 1  # signal
 ro = 0.5
 
 # Fix variables
-noise_variances = np.linspace(1, 10, 5)
+noise_variances = np.linspace(1, 10, 50)
 optimizer_classes = [GradientDescent, PrecondGD]
 
 test_errors = defaultdict(list)
@@ -160,7 +173,7 @@ params_dict = {
     'train_size': train_size,
     'test_size': test_size,
     'loss_function': str(loss_function),
-    # 'num_layers': num_layers,
+    'num_layers': num_layers,
     'max_iter': max_iter,
     'r2': r2,
     'ro': ro,

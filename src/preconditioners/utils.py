@@ -329,6 +329,26 @@ def param_gradient(y, param, grad_outputs=None):
     return torch.autograd.grad(y, param, grad_outputs=grad_outputs, create_graph=True)[0]
 
 
+def batch_jacobian(net, x):
+    noutputs = net.out_dim
+    x = x.unsqueeze(1)  # b, 1 ,in_dim
+    n = x.size()[0]
+    x = x.repeat(1, noutputs, 1) # b, out_dim, in_dim
+    x.requires_grad_(True)
+    y = net(x)
+    input_val = torch.eye(noutputs).reshape(1, noutputs, noutputs).repeat(n, 1, 1)
+    y.backward(input_val)
+    return x.grad.data
+
+
+def model_gradient_2(model, x):
+    model.zero_grad()
+    batch_jacobian(model, x)
+    grads = torch.cat([param.grad.view(-1) for param in model.parameters()]).view(-1, 1).detach()
+    model.zero_grad()
+    return grads
+
+
 class SLP(nn.Module):
         """ Single Layer Perceptron for regression. """
 
@@ -336,6 +356,7 @@ class SLP(nn.Module):
             super().__init__()
             self.activation = activation
             self.layer = nn.Linear(in_channels, 1, bias=False)
+            self.out_dim = 1
 
         def forward(self, x):
             """ Forward pass of the MLP. """
@@ -359,6 +380,7 @@ class MLP(nn.Module):
             for _ in range(num_layers - 2)
         ])
         self.output_layer = nn.Linear(hidden_layer_size, 1, bias=False)
+        self.out_dim = 1
 
     def forward(self, x):
         """ Forward pass of the MLP. """
