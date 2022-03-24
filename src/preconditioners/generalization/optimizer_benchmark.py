@@ -114,7 +114,7 @@ train_size = int(.5 * num_params)
 test_size = int(.5 * train_size)
 loss_function = torch.nn.MSELoss()
 d = 10
-num_layers = 1
+num_layers = 4
 
 if num_layers == 1:
     d = num_params
@@ -133,7 +133,7 @@ r2 = 1  # signal
 ro = 0.5
 
 # Fix variables
-noise_variances = np.linspace(1, 10, 50)
+noise_variances = np.linspace(1, 10, 10)
 optimizer_classes = [GradientDescent, PrecondGD]
 
 test_errors = defaultdict(list)
