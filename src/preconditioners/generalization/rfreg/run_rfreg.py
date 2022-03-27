@@ -10,7 +10,7 @@ if __name__ == '__main__':
     # for smaller run time (but noisier plot) decrease n
     display_risks_gamma_rf(n = 100,
                         n_extra = 1,
-                        n_benchmark = 3000,
+                        n_benchmark = 1500,
                         n_test = 200,
                         r2=1,
                         sigma2=1,
@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
                         empir = 'test',
                         alpha = 0.2,
-                        mu = 0,
+                        mu = 0.1,
                         geno_tol = 1e-5,
 
                         include_best_achievable = True,

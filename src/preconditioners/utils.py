@@ -150,6 +150,23 @@ def generate_true_parameter(d=600, r2=5, m=None):
 
     return w_star
 
+def generate_W_star(d = 600):
+    ' Return a somewhat random matrix of size (d, d), which does not have degenerate trace or determinant.'
+
+    ro = 0.4 + np.random.rand()/2
+    c = generate_c(ro=ro, regime='autoregressive', d=d)
+    V, D, Vt = np.linalg.svd(c)
+
+    for i in range(len(D)):
+        if np.random.rand()<0.25:
+            D[i] = D[i]*0.5
+        elif np.random.rand()>0.75:
+            D[i] = D[i]*2
+    D = np.abs(D + np.random.multivariate_normal(np.zeros(d), np.diag(D)/10))
+
+    W = V.dot(np.diag(D).dot(Vt))
+    return W
+
 
 def generate_c(ro=0.25,
                regime='id',
@@ -189,6 +206,33 @@ def generate_c(ro=0.25,
 
 
 def generate_c_inv_empir(X, empir, alpha=0.25, mu = 0.1, geno_tol = 1e-6, X_extra = None, X_test = None):
+
+    '''
+    Generates approximation of the inverse Fisher / covariance matrix. 
+
+    Parameters
+
+    ---------------
+
+    X  : n x p matrix, where row i of X is the gradient of the model at the ith data point.
+
+    empir :  Specifies the method used to approximate the Fisher / covariance.
+
+    alpha :  Regularization parameter in the Graphical Lasso, whenever glasso is used (e.g. 
+            if empir = 'gl' or empir = 'variance_gl').
+
+    mu :  Regularization parameter in damping methods. E.g. in empir = 'extra', the result is
+            c_inv = X.T.dot(X)/n + mu * np.eye(p) (if X_extra = None)
+
+    geno_tol :  Tolerance for the genosolver which is a framework for optimization problems.
+
+    X_extra : n_extra x p matrix, where row i of X is the gradient of the model at the ith extra 
+            data point. Used in methods where the matrix is approximated using extra data.
+
+    X_test : n_test x p matrix, where row i of X is the gradient of the model at the ith test 
+            data point. Used in methods where the matrix is approximated using test data.
+
+    '''
 
     if empir == 'lw':
         lw = LedoitWolf(assume_centered=True).fit(X)
