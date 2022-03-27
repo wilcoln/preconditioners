@@ -316,10 +316,27 @@ def recover_flattened(flat_params, indices, model):
     return l
 
 
-def model_gradient(y, model):
+def model_gradients_using_direct_computation(y, model):
     param_grads = [param_gradient(y, param) for param in model.parameters()]
 
     return torch.cat([grad.view(-1) for grad in param_grads]).view(-1, 1)
+
+
+def get_jacobian(net, x, noutputs):
+    x = x.squeeze()
+    x = x.repeat(noutputs, 1)
+    x.requires_grad_(True)
+    y = net(x)
+    y.backward(torch.eye(noutputs))
+    return x.grad.data
+
+
+def model_gradients_using_backprop(model, x):
+    model.zero_grad()
+    get_jacobian(model, x, noutputs=model.out_dim)
+    grads = torch.cat([param.grad.view(-1) for param in model.parameters()]).view(-1, 1).detach()
+    model.zero_grad()
+    return grads
 
 
 def param_gradient(y, param, grad_outputs=None):
@@ -331,17 +348,18 @@ def param_gradient(y, param, grad_outputs=None):
 
 def batch_jacobian(net, x):
     noutputs = net.out_dim
-    x = x.unsqueeze(1)  # b, 1 ,in_dim
+    # x b, d
+    x = x.unsqueeze(1)  # b, 1 ,d
     n = x.size()[0]
-    x = x.repeat(1, noutputs, 1) # b, out_dim, in_dim
+    x = x.repeat(1, noutputs, 1)  # b, out_dim, d
     x.requires_grad_(True)
     y = net(x)
     input_val = torch.eye(noutputs).reshape(1, noutputs, noutputs).repeat(n, 1, 1)
-    y.backward(input_val)
+    y.backward(input_val, retain_graph=True)
     return x.grad.data
 
 
-def model_gradient_2(model, x):
+def model_gradients_using_batched_backprop(model, x):
     model.zero_grad()
     batch_jacobian(model, x)
     grads = torch.cat([param.grad.view(-1) for param in model.parameters()]).view(-1, 1).detach()

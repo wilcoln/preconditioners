@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from paths import plots_dir
 from preconditioners import settings
 from preconditioners.datasets import CenteredGaussianDataset
-from preconditioners.optimizers import GradientDescent, PrecondGD
+from preconditioners.optimizers import GradientDescent, PrecondGD, PrecondGD2, PrecondGD3
 from preconditioners.utils import generate_true_parameter, generate_c, SLP, MLP
 from datetime import datetime as dt
 
@@ -25,10 +25,10 @@ from datetime import datetime as dt
 
 # Helper functions
 def instantiate_optimizer(optimizer_class, train_data, extra_data):
-    if optimizer_class == PrecondGD:
+    if optimizer_class in {PrecondGD, PrecondGD2, PrecondGD3}:
         labeled_data = train_data[:][0].double().to(settings.DEVICE)
         unlabeled_data = extra_data[:][0].double().to(settings.DEVICE)
-        return PrecondGD(model, lr=lr, labeled_data=labeled_data, unlabeled_data=unlabeled_data)
+        return optimizer_class(model, lr=lr, labeled_data=labeled_data, unlabeled_data=unlabeled_data)
     elif optimizer_class == GradientDescent:
         return GradientDescent(model.parameters(), lr=lr)
 
@@ -114,7 +114,7 @@ train_size = int(.5 * num_params)
 test_size = int(.5 * train_size)
 loss_function = torch.nn.MSELoss()
 d = 10
-num_layers = 4
+num_layers = 5
 
 if num_layers == 1:
     d = num_params
@@ -134,7 +134,7 @@ ro = 0.5
 
 # Fix variables
 noise_variances = np.linspace(1, 10, 10)
-optimizer_classes = [GradientDescent, PrecondGD]
+optimizer_classes = [GradientDescent, PrecondGD3]
 
 test_errors = defaultdict(list)
 for sigma2 in noise_variances:
@@ -192,3 +192,6 @@ with open(os.path.join(folder_path, 'params.json'), 'w') as f:
 
 # Print path to results
 print(f'Results saved to {folder_path}')
+
+plt.show()
+

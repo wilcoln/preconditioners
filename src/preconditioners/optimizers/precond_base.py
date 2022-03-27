@@ -1,49 +1,13 @@
 import torch
 from torch.optim.optimizer import Optimizer
-from icecream import ic
-from preconditioners.utils import model_gradient, model_gradient_2
 
 
-class GradientDescent(Optimizer):
-
-    def __init__(self, params, lr):
-        defaults = dict(lr=lr)
-        super(GradientDescent, self).__init__(params, defaults)
-
-    def __setstate__(self, state):
-        super(GradientDescent, self).__setstate__(state)
-
-    def step(self, closure=None):
-        loss = None
-        if closure is not None:
-            loss = closure()
-
-        for group in self.param_groups:
-            for p in group['params']:
-                if p.grad is None:
-                    continue
-
-                d_p = p.grad.data
-                p.data.add_(-group['lr'], d_p)
-
-        return loss
-
-
-class PrecondGD(Optimizer):
-    """Implements preconditionned gradient descent, takes a preconditionning matrix as input
-    Example:
-        >>> import numpy as npm
-        >>> from preconditioners.optimizers import PrecondGD
-        >>> params = model.parameters()
-        >>> optimizer = PrecondGD(params=params, lr=0.1, labeled_data=None, unlabeled_data=None)
-        >>> optimizer.zero_grad()
-        >>> loss_fn(model(input), target).backward()
-        >>> optimizer.step()
-    """
+class PrecondBase(Optimizer):
+    """Implements preconditionned gradient descent"""
 
     def __init__(self, model, lr, labeled_data, unlabeled_data):
         defaults = dict(lr=lr, labeled_data=labeled_data, unlabeled_data=unlabeled_data)
-        super(PrecondGD, self).__init__(model.parameters(), defaults)
+        super(PrecondBase, self).__init__(model.parameters(), defaults)
 
         self.known_modules = {'Linear'}
         self.modules = []
@@ -56,7 +20,7 @@ class PrecondGD(Optimizer):
     def _prepare_model(self):
         count = 0
         print(self.model)
-        print("=> We keep the following layers in PrecondGD. ")
+        print("=> We keep the following layers in PrecondDG. ")
         for module in self.model.modules():
             classname = module.__class__.__name__
             if classname in self.known_modules:
@@ -98,8 +62,8 @@ class PrecondGD(Optimizer):
         k = len(p_grad_vec)
         m_size = p_grad_vec[m].shape[0]
 
-        # Eduard Comment: I think it would be best to write a separate helper function for the 
-        # 4 lines of code below and write a couple of unit tests just for it, to be sure that 
+        # Eduard Comment: I think it would be best to write a separate helper function for the
+        # 4 lines of code below and write a couple of unit tests just for it, to be sure that
         # it does what you think it should be doing.
 
         # Natural gradient computation for layer m
@@ -163,40 +127,4 @@ class PrecondGD(Optimizer):
         self.steps += 1
 
     def _compute_p_inv(self) -> torch.Tensor:
-        """Compute the inverse matrix"""
-        group = self.param_groups[0]
-
-        labeled_data = group['labeled_data']
-        unlabeled_data = group['unlabeled_data']
-
-        # # Compute the output of the model on the labeled and unlabeled data
-        # y_labeled = self.model(labeled_data)
-        # y_unlabeled = self.model(unlabeled_data)
-        #
-        # # Fix to allow computation of gradients on non-leaf nodes
-        # y_labeled.retain_grad()
-        # y_unlabeled.retain_grad()
-        #
-        # # Compute the gradient of the output on the labeled and unlabeled data w.r.t the model parameters
-        # labeled_grad_list = [model_gradient(y, self.model) for y in torch.unbind(y_labeled)]
-        # unlabeled_grad_list = [model_gradient(y, self.model) for y in torch.unbind(y_unlabeled)]
-
-        # Eduard comment: when you do loss.backward() in examples/precond.py then it also computes
-        # the gradient of the loss (and hence also of the output on the labeled data) with respect 
-        # to the model parameters. Hence we do it twice. Right now I would not change it, but let's
-        # keep this comment here so that we can perhaps do it later.
-
-        # Compute the fisher information matrix at this iteration
-        # stacked_labeled_grads = torch.stack([grad @ grad.T for grad in labeled_grad_list])
-        # stacked_unlabeled_grads = torch.stack([grad @ grad.T for grad in unlabeled_grad_list])
-        #
-        # p = torch.sum(stacked_labeled_grads, 0) + torch.sum(stacked_unlabeled_grads, 0)
-
-        labeled_grad = model_gradient_2(self.model, labeled_data)
-        unlabeled_grad = model_gradient_2(self.model, unlabeled_data)
-
-        p = labeled_grad @ labeled_grad.T + unlabeled_grad @ unlabeled_grad.T
-        p *= 1 / (labeled_data.shape[0] + unlabeled_data.shape[0])
-
-        # Compute the inverse of the fisher information matrix
-        return torch.pinverse(p)
+        raise NotImplementedError

@@ -1,13 +1,13 @@
-import unittest, torch
+import torch
+import unittest
 
-from torch import nn
 from torch.utils.data import random_split
 
 from preconditioners import settings
-from preconditioners.datasets import CenteredGaussianDataset
 from preconditioners.cov_approx.impl_cov_approx import *
-from preconditioners.utils import generate_c, SLP
+from preconditioners.datasets import CenteredGaussianDataset
 from preconditioners.optimizers import PrecondGD
+from preconditioners.utils import generate_c, SLP
 
 
 class TestPinv(unittest.TestCase):
@@ -28,54 +28,11 @@ class TestPinv(unittest.TestCase):
         self.optimizer = PrecondGD(self.model, lr=1e-3, labeled_data=self.labeled_data,
                                    unlabeled_data=self.unlabeled_data)
 
-    def train(self, model, train_dataset, optimizer, loss_function, n_epochs, print_every=1):
-        for epoch in range(n_epochs):
-            model.train()
-            # Set current loss value
-            current_loss = 0.0
-
-            # Get and prepare inputs
-            inputs, targets = train_dataset[:]
-            # Set the inputs and targets to the device
-            inputs, targets = inputs.double().to(settings.DEVICE), targets.double().to(settings.DEVICE)
-            targets = targets.reshape((targets.shape[0], 1))
-
-            # Zero the gradients
-            optimizer.zero_grad()
-
-            # Perform forward pass
-            outputs = model(inputs)
-
-            # Compute loss
-            loss = loss_function(outputs, targets)
-
-            # Perform backward pass
-            loss.backward()
-
-            # Perform optimization
-            optimizer.step()
-
-            # Update statistics
-            current_loss += loss.item()
-
-            current_loss /= len(train_dataset)
-
-            matrix_loss = np.linalg.norm(optimizer._compute_p_inv() - np.linalg.inv(self.c))
-
-            if epoch % print_every == 0:
-                print(f'Epoch {epoch + 1}: Train loss: {current_loss:.4f} Matrix error: {matrix_loss:.4f}')
-
     def test_p_inv_against_c_inv(self):
-        self.train(
-            self.model,
-            self.train_dataset,
-            self.optimizer,
-            nn.MSELoss(),
-            n_epochs=1)
 
         p_inv = self.optimizer._compute_p_inv()
         c_inv = np.linalg.inv(self.c)
-        mat_error = np.linalg.norm(p_inv - c_inv, ord=np.inf) # max(sum(abs(p_inv - c_inv), axis=1))
+        mat_error = np.linalg.norm(p_inv - c_inv, ord=np.inf)  # max(sum(abs(p_inv - c_inv), axis=1))
         tol_error_in_each_entry = 0.2
         tol = p_inv.shape[0]*tol_error_in_each_entry
         self.assertTrue(
@@ -85,12 +42,6 @@ class TestPinv(unittest.TestCase):
             while the first entries of c are {c_inv[:4,:4]}")
 
     def test_p_inv_against_true_p_inv(self):
-        self.train(
-                self.model,
-                self.train_dataset,
-                self.optimizer,
-                nn.MSELoss(),
-                n_epochs=1)
 
         p_inv = self.optimizer._compute_p_inv()
 
