@@ -109,7 +109,9 @@ def generate_data(sigma2):
 tol = 1e-3  # Eduard commment: This needs to be a lot smaller later on
 lr = 1e-1
 extra_size = 1000
-num_params = int(.1 * extra_size)
+# Eduard commment: We are interested in cases where num_params > train_size (not just d > train_size)
+# it is interesting that you found better generalization of NGD even if num_params <  train_size
+num_params = int(.1 * extra_size) 
 train_size = int(.5 * num_params)
 test_size = int(.5 * train_size)
 loss_function = torch.nn.MSELoss()
@@ -124,6 +126,8 @@ else:
         h = num_params // (1 + d)
     else:
         hidden_layers = num_layers - 2
+        # Eduard comment: please add a comment here about how you are computing the hiddeg layer size.
+        # Is it same width for every hidden layer?
         h = int((-(1 + d) + math.sqrt((1 + d)**2 + 4*hidden_layers*num_params)) / (2*hidden_layers))
 
     model = MLP(in_channels=d, num_layers=num_layers, hidden_layer_size=h).double().to(settings.DEVICE)

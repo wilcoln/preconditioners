@@ -150,6 +150,23 @@ def generate_true_parameter(d=600, r2=5, m=None):
 
     return w_star
 
+def generate_W_star(d = 600):
+    ' Return a somewhat random matrix of size (d, d), which does not have degenerate trace or determinant.'
+
+    ro = 0.4 + np.random.rand()/2
+    c = generate_c(ro=ro, regime='autoregressive', d=d)
+    V, D, Vt = np.linalg.svd(c)
+
+    for i in range(len(D)):
+        if np.random.rand()<0.25:
+            D[i] = D[i]*0.5
+        elif np.random.rand()>0.75:
+            D[i] = D[i]*2
+    D = np.abs(D + np.random.multivariate_normal(np.zeros(d), np.diag(D)/10))
+
+    W = V.dot(np.diag(D).dot(Vt))
+    return W
+
 
 def generate_c(ro=0.25,
                regime='id',
