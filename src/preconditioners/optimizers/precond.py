@@ -1,6 +1,6 @@
 import torch
 
-from optimizers.precond_base import PrecondBase
+from preconditioners.optimizers.precond_base import PrecondBase
 from preconditioners.utils import model_gradients_using_backprop
 
 

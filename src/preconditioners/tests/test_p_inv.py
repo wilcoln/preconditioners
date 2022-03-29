@@ -6,7 +6,7 @@ from torch.utils.data import random_split
 from preconditioners import settings
 from preconditioners.cov_approx.impl_cov_approx import *
 from preconditioners.datasets import CenteredGaussianDataset
-from preconditioners.optimizers import PrecondGD
+from preconditioners.optimizers import PrecondGD, PrecondGD3
 from preconditioners.utils import generate_c, SLP
 
 
@@ -25,7 +25,7 @@ class TestPinv(unittest.TestCase):
         self.unlabeled_data = self.extra_dataset[:][0].double().to(settings.DEVICE)
 
         self.model = SLP(in_channels=self.dataset.X.shape[1]).double().to(settings.DEVICE)
-        self.optimizer = PrecondGD(self.model, lr=1e-3, labeled_data=self.labeled_data,
+        self.optimizer = PrecondGD3(self.model, lr=1e-3, labeled_data=self.labeled_data,
                                    unlabeled_data=self.unlabeled_data)
 
     def test_p_inv_against_c_inv(self):
