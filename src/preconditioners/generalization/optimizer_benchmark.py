@@ -6,6 +6,8 @@ from collections import defaultdict
 
 import numpy as np
 import torch
+import argparse
+
 from icecream import ic
 from torch.utils.data import random_split
 import matplotlib.pyplot as plt
@@ -21,6 +23,10 @@ from datetime import datetime as dt
 
 # Eduard comment (Treated): The way we will test it, these are going to be the sizes:
 # len(test_data) < len(train_data) < no_of_parameters_of_the_model << len(extra_data)
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--num_layers', help='Number of layers', default=1, type=int)
+args = vars(parser.parse_args())
 
 
 # Helper functions
@@ -116,7 +122,7 @@ train_size = int(.5 * num_params)
 test_size = int(.5 * train_size)
 loss_function = torch.nn.MSELoss()
 d = 10
-num_layers = 5
+num_layers = args['num_layers']
 
 if num_layers == 1:
     d = num_params
@@ -138,7 +144,7 @@ ro = 0.5
 
 # Fix variables
 noise_variances = np.linspace(1, 10, 10)
-optimizer_classes = [GradientDescent, PrecondGD3]
+optimizer_classes = [GradientDescent, PrecondGD, PrecondGD3]
 
 test_errors = defaultdict(list)
 for sigma2 in noise_variances:

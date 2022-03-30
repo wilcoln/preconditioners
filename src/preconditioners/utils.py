@@ -4,6 +4,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import torch, scipy
+from icecream import ic
 from numpy.random import normal
 from sklearn.covariance import LedoitWolf, GraphicalLasso
 from sklearn.model_selection import train_test_split
@@ -390,7 +391,7 @@ def param_gradient(y, param, grad_outputs=None):
     return torch.autograd.grad(y, param, grad_outputs=grad_outputs, create_graph=True)[0]
 
 
-def batch_jacobian(net, x):
+def get_batch_jacobian(net, x):
     noutputs = net.out_dim
     # x b, d
     x = x.unsqueeze(1)  # b, 1 ,d
@@ -405,7 +406,7 @@ def batch_jacobian(net, x):
 
 def model_gradients_using_batched_backprop(model, x):
     model.zero_grad()
-    batch_jacobian(model, x)
+    get_batch_jacobian(model, x)
     grads = torch.cat([param.grad.view(-1) for param in model.parameters()]).view(-1, 1).detach()
     model.zero_grad()
     return grads
