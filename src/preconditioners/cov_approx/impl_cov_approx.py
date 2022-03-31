@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import scipy
 
-from preconditioners.utils import generate_c, generate_centered_gaussian_data
+from preconditioners.utils import generate_c, generate_centered_linear_gaussian_data
 
 
 def log_lik(cov_inv, cov_empir):

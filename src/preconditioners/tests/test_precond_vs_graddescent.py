@@ -4,7 +4,7 @@ from torch import nn
 from torch.utils.data import random_split
 
 from preconditioners import settings
-from preconditioners.datasets import CenteredGaussianDataset
+from preconditioners.datasets import CenteredLinearGaussianDataset
 from preconditioners.cov_approx.impl_cov_approx import *
 from preconditioners.utils import generate_c, SLP
 from preconditioners.optimizers import PrecondGD, GradientDescent
@@ -18,7 +18,7 @@ class TestPrecondVsGradDescent(unittest.TestCase):
         extra_size = 900
         w_star = np.random.multivariate_normal(mean=np.zeros(d), cov=np.eye(d))
         self.c = generate_c(ro=.5, regime='autoregressive', d=d)
-        self.dataset = CenteredGaussianDataset(w_star=w_star, d=d, c=self.c, n=train_size + extra_size)
+        self.dataset = CenteredLinearGaussianDataset(w_star=w_star, d=d, c=self.c, n=train_size + extra_size)
         self.train_dataset, extra_dataset = random_split(self.dataset, [train_size, extra_size])
 
         labeled_data = self.train_dataset[:][0].double().to(settings.DEVICE)

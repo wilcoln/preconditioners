@@ -164,19 +164,19 @@ def display_risks_gamma_rf(n = 200,
     w_star = generate_true_parameter(d, r2, m = m)
 
     # generate data from a normal distribution
-    X, y, xi = generate_centered_gaussian_data(w_star, c, n, d, sigma2, fix_norm_of_x)
+    X, y, xi = generate_centered_linear_gaussian_data(w_star, c, n, d, sigma2, fix_norm_of_x)
     print('training data generated')
 
     # generate testing data to compute test error on
-    X_test, y_test, xi_test = generate_centered_gaussian_data(w_star, c, n_test, d, sigma2, fix_norm_of_x)
+    X_test, y_test, xi_test = generate_centered_linear_gaussian_data(w_star, c, n_test, d, sigma2, fix_norm_of_x)
     print('test data generated')
 
     # generate benchmark data to have as a reference of performance (has to be different than testing data)
-    X_benchmark, y_benchmark, xi_benchmark = generate_centered_gaussian_data(w_star, c, n_benchmark, d, sigma2, fix_norm_of_x)
+    X_benchmark, y_benchmark, xi_benchmark = generate_centered_linear_gaussian_data(w_star, c, n_benchmark, d, sigma2, fix_norm_of_x)
     print('benchmark data generated')
 
      # generate extra data to estimate covariance matrix better
-    X_extra, y_extra, xi_extra = generate_centered_gaussian_data(w_star, c, n_extra, d, sigma2, fix_norm_of_x)
+    X_extra, y_extra, xi_extra = generate_centered_linear_gaussian_data(w_star, c, n_extra, d, sigma2, fix_norm_of_x)
     print('extra data generated')
 
     count = 0

@@ -304,7 +304,7 @@ def initialize_C(cov_empir, e_1=0.1, e_2=0.5, ro=0.2):
     return C_init                                                                
 
 
-def generate_centered_gaussian_data(w_star, c, n=200, d=600, sigma2=1, fix_norm_of_x=False):
+def generate_centered_linear_gaussian_data(w_star, c, n=200, d=600, sigma2=1, fix_norm_of_x=False):
     assert len(w_star) == d, 'dimensions error'
 
     # generate features
@@ -324,6 +324,25 @@ def generate_centered_gaussian_data(w_star, c, n=200, d=600, sigma2=1, fix_norm_
 
     # generate response
     y = X.dot(w_star) + xi
+
+    return X, y, xi
+
+
+def generate_centered_quadratic_gaussian_data(W_star, w_star, c, n=200, d=600, sigma2=1):
+    assert W_star.shape == (d, d), 'dimensions error'
+
+    # generate features
+    X = np.random.multivariate_normal(mean=np.zeros(d), cov=c, size=n)
+
+    # print warning if X is not on the sphere
+    if any(abs(np.linalg.norm(X, axis=1) - np.sqrt(d)) > 1e-5):
+        warnings.warn('Warning, norms of datapoints are not sqrt(d)')
+
+    # generate_noise
+    xi = np.random.multivariate_normal(np.zeros(n), sigma2 * np.eye(n))
+
+    # generate response
+    y = (X.dot(W_star)*X).sum(axis=1) + X.dot(w_star) + xi
 
     return X, y, xi
 

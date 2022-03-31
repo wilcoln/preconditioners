@@ -15,9 +15,9 @@ import matplotlib.pyplot as plt
 
 from paths import plots_dir
 from preconditioners import settings
-from preconditioners.datasets import CenteredGaussianDataset
+from preconditioners.datasets import CenteredLinearGaussianDataset, CenteredQuadraticGaussianDataset
 from preconditioners.optimizers import GradientDescent, PrecondGD, PrecondGD2, PrecondGD3
-from preconditioners.utils import generate_true_parameter, generate_c, SLP, MLP
+from preconditioners.utils import generate_true_parameter, generate_c, SLP, MLP, generate_W_star
 from datetime import datetime as dt
 
 
@@ -101,11 +101,25 @@ def test(model, test_data, loss_function):
     return loss.item()
 
 
-def generate_data(sigma2):
+def generate_linear_data(sigma2):
     global d, r2, ro, train_size, test_size, extra_size
     w_star = generate_true_parameter(d, r2, m=np.eye(d))
     c = generate_c(ro, regime='autoregressive', d=d)
-    dataset = CenteredGaussianDataset(w_star=w_star, d=d, c=c, n=train_size + test_size + extra_size, sigma2=sigma2)
+    dataset = CenteredLinearGaussianDataset(w_star=w_star, d=d, c=c, n=train_size + test_size + extra_size, sigma2=sigma2)
+    train_data, test_data, extra_data = random_split(dataset, [train_size, test_size, extra_size])
+
+    return train_data, test_data, extra_data
+
+
+def generate_quadratic_data(sigma2):
+    global d, r2, ro, train_size, test_size, extra_size
+    w_star = generate_true_parameter(d, r2, m=np.eye(d))
+    W_star = generate_W_star(d)
+    c = generate_c(ro, regime='autoregressive', d=d)
+    dataset = CenteredQuadraticGaussianDataset(
+        W_star=W_star, w_star=w_star, d=d, c=c,
+        n=train_size + test_size + extra_size, sigma2=sigma2)
+
     train_data, test_data, extra_data = random_split(dataset, [train_size, test_size, extra_size])
 
     return train_data, test_data, extra_data
@@ -113,7 +127,7 @@ def generate_data(sigma2):
 
 # Fix parameters
 tol = 1e-3  # Eduard commment: This needs to be a lot smaller later on
-lr = 1e-1
+lr = 1e-3
 extra_size = 1000
 # Eduard commment: We are interested in cases where num_params > train_size (not just d > train_size)
 # it is interesting that you found better generalization of NGD even if num_params <  train_size
@@ -149,7 +163,7 @@ optimizer_classes = [GradientDescent, PrecondGD, PrecondGD3]
 test_errors = defaultdict(list)
 for sigma2 in noise_variances:
     # Generate data
-    train_data, test_data, extra_data = generate_data(sigma2=sigma2)
+    train_data, test_data, extra_data = generate_quadratic_data(sigma2=sigma2)
     print(f'Noise variance: {sigma2}')
     for optim_cls in optimizer_classes:
         print(f'\n\nOptimizer: {optim_cls.__name__}')
