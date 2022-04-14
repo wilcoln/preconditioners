@@ -4,8 +4,8 @@ import jax.numpy as jnp
 import kfac_jax
 
 # Hyper parameters
+from icecream import ic
 
-NUM_CLASSES = 10
 L2_REG = 1e-3
 NUM_BATCHES = 100
 
@@ -16,24 +16,13 @@ def make_dataset_iterator(batch_size):
         yield jnp.zeros([batch_size, 100]), jnp.ones([batch_size], dtype="int32")
 
 
-def softmax_cross_entropy(logits: jnp.ndarray, targets: jnp.ndarray):
-    """Softmax cross entropy loss."""
-    # We assume integer labels
-    assert logits.ndim == targets.ndim + 1
-
-    # Tell KFAC-JAX this model represents a classifier
-    # See https://kfac-jax.readthedocs.io/en/latest/overview.html#supported-losses
-    kfac_jax.register_softmax_cross_entropy_loss(logits, targets)
-    log_p = jax.nn.log_softmax(logits, axis=-1)
-    return - jax.vmap(lambda x, y: x[y])(log_p, targets)
-
-
 def model_fn(x):
     """A Haiku MLP model function - three hidden layer network with tanh."""
     return hk.nets.MLP(
-        output_sizes=(50, 50, 50, NUM_CLASSES),
+        output_sizes=(50, 50, 1),
         with_bias=True,
         activation=jax.nn.tanh,
+        activate_final=False,
     )(x)
 
 
@@ -44,8 +33,9 @@ hk_model = hk.without_apply_rng(hk.transform(model_fn))
 def loss_fn(model_params, model_batch):
     """The loss function to optimize."""
     x, y = model_batch
-    logits = hk_model.apply(model_params, x)
-    loss = jnp.mean(softmax_cross_entropy(logits, y))
+    y_hats = hk_model.apply(model_params, x)
+    kfac_jax.register_squared_error_loss(y_hats, y)
+    loss = jnp.mean(jnp.square(y_hats - y))
 
     # The optimizer assumes that the function you provide has already added
     # the L2 regularizer to its gradients.
@@ -68,15 +58,15 @@ optimizer = kfac_jax.Optimizer(
 
 input_dataset = make_dataset_iterator(128)
 rng = jax.random.PRNGKey(42)
-dummy_images, dummy_labels = next(input_dataset)
+dummy_xs, dummy_ys = next(input_dataset)
 rng, key = jax.random.split(rng)
-params = hk_model.init(key, dummy_images)
+params = hk_model.init(key, dummy_xs)
 rng, key = jax.random.split(rng)
-opt_state = optimizer.init(params, key, (dummy_images, dummy_labels))
+opt_state = optimizer.init(params, key, (dummy_xs, dummy_ys))
 
 # Training loop
 for i, batch in enumerate(input_dataset):
+    ic('Training step {}'.format(i))
     rng, key = jax.random.split(rng)
-    params, opt_state, stats = optimizer.step(
-        params, opt_state, key, batch=batch, global_step_int=i)
+    params, opt_state, stats = optimizer.step(params, opt_state, key, batch=batch, global_step_int=i)
     print(i, stats)
