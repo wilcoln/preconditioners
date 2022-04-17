@@ -454,14 +454,14 @@ class SLP(nn.Module):
 class MLP(nn.Module):
     """ Single Layer Perceptron for regression. """
 
-    def __init__(self, in_channels, num_layers=2, hidden_layer_size=100):
+    def __init__(self, in_channels, num_layers=2, hidden_channels=100):
         super().__init__()
-        self.in_layer = nn.Linear(in_channels, hidden_layer_size, bias=False)
+        self.in_layer = nn.Linear(in_channels, hidden_channels, bias=False)
         self.hidden_layers = nn.ModuleList([
-            nn.Linear(hidden_layer_size, hidden_layer_size)
+            nn.Linear(hidden_channels, hidden_channels)
             for _ in range(num_layers - 2)
         ])
-        self.output_layer = nn.Linear(hidden_layer_size, 1, bias=False)
+        self.output_layer = nn.Linear(hidden_channels, 1, bias=False)
         self.out_dim = 1
 
     def forward(self, x):
