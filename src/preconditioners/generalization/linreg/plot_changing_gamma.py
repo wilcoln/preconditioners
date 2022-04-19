@@ -181,7 +181,7 @@ def display_risks_gamma(n = 100,
         w_star = generate_true_parameter(d, r2, m = m)
 
         # generate data
-        X, y, xi = generate_centered_gaussian_data(w_star, c, n, d, sigma2)
+        X, y, xi = generate_centered_linear_gaussian_data(w_star, c, n, d, sigma2)
         print('data generated')
 
         # generate empirical estimate of the covariance matrix

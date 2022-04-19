@@ -1,7 +1,7 @@
 import unittest
 
 from preconditioners.cov_approx.impl_cov_approx import *
-from preconditioners.utils import generate_c, generate_centered_gaussian_data
+from preconditioners.utils import generate_c, generate_centered_linear_gaussian_data
 
 
 class TestImplCov(unittest.TestCase):
@@ -17,12 +17,12 @@ class TestImplCov(unittest.TestCase):
                             d=self.d
                             )
         self.w_star = np.random.multivariate_normal(mean=np.zeros(self.d), cov=np.eye(self.d))
-        self.X, self.y, self.xi = generate_centered_gaussian_data(self.w_star,
-                                                                  self.c,
-                                                                  n=self.n,
-                                                                  d=self.d,
-                                                                  sigma2=1,
-                                                                  fix_norm_of_x=False)
+        self.X, self.y, self.xi = generate_centered_linear_gaussian_data(self.w_star,
+                                                                         self.c,
+                                                                         n=self.n,
+                                                                         d=self.d,
+                                                                         sigma2=1,
+                                                                         fix_norm_of_x=False)
 
     def test_log_lik(self):
         cov_inv = np.eye(self.d)
