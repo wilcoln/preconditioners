@@ -113,7 +113,7 @@ def generate_linear_data(sigma2):
 def generate_quadratic_data(sigma2):
     global d, r2, ro, train_size, test_size, extra_size
     w_star = generate_true_parameter(d, r2, m=np.eye(d))
-    W_star = generate_W_star(d)
+    W_star = generate_W_star(d, r2)
     c = generate_c(ro, regime='autoregressive', d=d)
     dataset = CenteredQuadraticGaussianDataset(
         W_star=W_star, w_star=w_star, d=d, c=c,

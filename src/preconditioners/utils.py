@@ -151,7 +151,7 @@ def generate_true_parameter(d=600, r2=5, m=None):
 
     return w_star
 
-def generate_W_star(d = 600):
+def generate_W_star(d = 600, r2 = 5):
     ' Return a somewhat random matrix of size (d, d), which does not have degenerate trace or determinant.'
 
     ro = 0.4 + np.random.rand()/2
@@ -164,8 +164,10 @@ def generate_W_star(d = 600):
         elif np.random.rand()>0.75:
             D[i] = D[i]*2
     D = np.abs(D + np.random.multivariate_normal(np.zeros(d), np.diag(D)/10))
+    largest_eval = np.max(D)
+    D = D/largest_eval
 
-    W = V.dot(np.diag(D).dot(Vt))
+    W = V.dot(np.diag(D).dot(Vt))*np.sqrt(r2/d) # this way x^T W x ~ sqrt(r2/d), which is the same as x^T w_star
     return W
 
 
@@ -341,15 +343,11 @@ def generate_centered_quadratic_gaussian_data(W_star, w_star, c, n=200, d=600, s
     # generate features
     X = np.random.multivariate_normal(mean=np.zeros(d), cov=c, size=n)
 
-    # print warning if X is not on the sphere
-    if any(abs(np.linalg.norm(X, axis=1) - np.sqrt(d)) > 1e-5):
-        warnings.warn('Warning, norms of datapoints are not sqrt(d)')
-
     # generate_noise
     xi = np.random.multivariate_normal(np.zeros(n), sigma2 * np.eye(n))
 
     # generate response
-    y = (X.dot(W_star)*X).sum(axis=1) + X.dot(w_star) + xi
+    y = (X.dot(W_star)*X).sum(axis=1) + X.dot(w_star) + xi # equivalent to np.array([X[i].T.dot(W_star.dot(X[i])) for i in range(n)]) + X.dot(w_star) + xi
 
     return X, y, xi
 
