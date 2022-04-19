@@ -275,6 +275,13 @@ def generate_c_inv_empir(X, empir, alpha=0.25, mu = 0.1, geno_tol = 1e-6, X_extr
         assert d_test == d, 'test_data needs to have the same dimension as X'
         return np.linalg.inv( (X.T.dot(X) + X_test.T.dot(X_test)) / (n + n_test) + mu*np.eye(d) )
 
+    elif empir == 'test_duplicate_noise':
+
+        # in the case where n_test is small (e.g. n_test = 1) how about making copies of x_test 
+        # and adding a little bit of noise to these copies, to make a larger matrix X_test.
+        # How would this perform?
+        pass
+
     elif empir == 'variance_extra':
         n, d = X.shape
         n_extra, d_extra = X_extra.shape

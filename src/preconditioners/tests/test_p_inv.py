@@ -15,7 +15,7 @@ class TestPinv(unittest.TestCase):
     def setUp(self):
         d = 30
         train_size = 10
-        extra_size = 1000
+        extra_size = 10000
         w_star = np.random.multivariate_normal(mean=np.zeros(d), cov=np.eye(d))
         self.c = generate_c(ro=.5, regime='autoregressive', d=d)
         self.dataset = CenteredGaussianDataset(w_star=w_star, d=d, c=self.c, n=train_size + extra_size)
