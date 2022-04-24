@@ -71,6 +71,12 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
         # Perform backward pass
         loss.backward()
 
+        # Gradient Norm Clipping
+        #nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
+
+        #Gradient Value Clipping
+        torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=1.0)
+
         # Perform optimization
         optimizer.step()
 
