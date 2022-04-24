@@ -1,4 +1,5 @@
 import argparse
+import os
 
 from matplotlib import pyplot as plt
 from torch.utils.data import random_split
@@ -12,16 +13,15 @@ from preconditioners.optimizers import PrecondGD
 
 class CheckEigenValues:
     def __init__(self, args):
-        step = max(1, args.max_width//10)
-        self.widths = np.arange(1, args.max_width + 1, step)
-        self.d = 10
-        self.train_size = 100
+        self.widths = np.arange(10, args.max_width + 1, args.width_step)
+        self.d = 5
+        self.train_size = 50
         self.w_star = np.random.multivariate_normal(mean=np.zeros(self.d), cov=np.eye(self.d))
         self.c = generate_c(ro=.5, regime='autoregressive', d=self.d)
 
     def setup(self, width):
         p = (1 + self.d) * width + width**2
-        N = 3 * max(p, self.train_size)
+        N = 2 * max(p, self.train_size)
         extra_size = N - self.train_size
 
         self.dataset = CenteredLinearGaussianDataset(w_star=self.w_star, d=self.d, c=self.c, n=N)
@@ -51,13 +51,15 @@ class CheckEigenValues:
         plt.legend()
         plt.xlabel('Width')
         plt.ylabel('Eigen values')
-        plt.show()
+        plt.savefig('check_eigen_values', format='png')
+        print(min_eigen_values)
 
 
 if __name__ == "__main__":
     # Get params
     parser = argparse.ArgumentParser()
     parser.add_argument('--max_width', help='Max 3-MLP width', default=100, type=int)
+    parser.add_argument('--width_step', help='Width step', default=5, type=int)
     args = parser.parse_args()
 
     # Run
