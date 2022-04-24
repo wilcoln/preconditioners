@@ -110,3 +110,5 @@ data/
 # Ignore folder
 .ignore/
 rough_work/
+scripts/gpush.sh
+.gd/

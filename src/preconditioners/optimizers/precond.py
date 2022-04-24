@@ -26,4 +26,6 @@ class PrecondGD(PrecondBase):
         p *= 1 / (labeled_data.shape[0] + unlabeled_data.shape[0])
 
         # Compute the inverse of the fisher information matrix
-        return torch.pinverse(p)
+        # add damping to avoid division by zero
+        p += torch.eye(p.shape[0]) * 1 / torch.norm(p)
+        return torch.cholesky_inverse(p)

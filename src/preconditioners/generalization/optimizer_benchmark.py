@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import argparse
 
+from icecream import ic
 from torch.utils.data import random_split
 import matplotlib.pyplot as plt
 
@@ -25,7 +26,8 @@ from datetime import datetime as dt
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--num_layers', help='Number of layers', default=1, type=int)
-args = vars(parser.parse_args())
+parser.add_argument('--hidden_channels', help='Hidden channels', type=int)
+args = parser.parse_args()
 
 
 # Helper functions
@@ -75,7 +77,7 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
         # Update statistics
         current_loss = loss.item()
 
-        if current_loss >= previous_loss:
+        if np.abs(current_loss - previous_loss) < 1e-2:
             no_improvement_counter += 1
         else:
             no_improvement_counter = 0
@@ -127,7 +129,7 @@ def generate_quadratic_data(sigma2):
 # Fix parameters
 tol = 1e-3  # Eduard commment: This needs to be a lot smaller later on
 lr = 1e-3
-extra_size = 2000
+extra_size = 1000
 # Eduard commment: We are interested in cases where num_params > train_size (not just d > train_size)
 # it is interesting that you found better generalization of NGD even if num_params <  train_size
 num_params = int(.1 * extra_size) 
@@ -135,36 +137,41 @@ train_size = int(.5 * num_params)
 test_size = int(.5 * train_size)
 loss_function = torch.nn.MSELoss()
 d = 10
-num_layers = args['num_layers']
+num_layers = args.num_layers
 
-if num_layers == 1:
-    d = num_params
-    model = SLP(in_channels=num_params).double().to(settings.DEVICE)
-    hidden_channels = 0
+if args.hidden_channels:
+    hidden_channels = args.hidden_channels
+    num_layers = 3
 else:
-    if num_layers == 2:
-        hidden_channels = num_params // (1 + d)
+    if num_layers == 1:
+        d = num_params
+        model = SLP(in_channels=num_params).double().to(settings.DEVICE)
+        hidden_channels = 0
     else:
-        hidden_layers = num_layers - 2
-        # Eduard comment: please add a comment here about how you are computing the hiddeg layer size.
-        # Is it same width for every hidden layer?
-        hidden_channels = int((-(1 + d) + math.sqrt((1 + d) ** 2 + 4 * hidden_layers * num_params)) / (2 * hidden_layers))
+        if num_layers == 2:
+            hidden_channels = num_params // (1 + d)
+        else:
+            hidden_layers = num_layers - 2
+            # Eduard comment: please add a comment here about how you are computing the hiddeg layer size.
+            # Is it same width for every hidden layer?
+            hidden_channels = int((-(1 + d) + math.sqrt((1 + d) ** 2 + 4 * hidden_layers * num_params)) / (2 * hidden_layers))
 
-    model = MLP(in_channels=d, num_layers=num_layers, hidden_channels=hidden_channels).double().to(settings.DEVICE)
+
+model = MLP(in_channels=d, num_layers=num_layers, hidden_channels=hidden_channels).double().to(settings.DEVICE)
 
 max_iter = 1000  # float('inf')
 r2 = 1  # signal
 ro = 0.5
 
 # Fix variables
-noise_variances = np.linspace(1, 10, 10)
-optimizer_classes = [GradientDescent, PrecondGD, Kfac, PrecondGD3]
+noise_variances = np.linspace(1, 50, 10)
+optimizer_classes = [GradientDescent, PrecondGD, Kfac]
 
 if __name__ == '__main__':
     test_errors = defaultdict(list)
     for sigma2 in noise_variances:
         # Generate data
-        train_data, test_data, extra_data = generate_linear_data(sigma2=sigma2)
+        train_data, test_data, extra_data = generate_quadratic_data(sigma2=sigma2)
         print(f'Noise variance: {sigma2}')
         for optim_cls in optimizer_classes:
             print(f'\n\nOptimizer: {optim_cls.__name__}')

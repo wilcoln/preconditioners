@@ -10,6 +10,8 @@ from sklearn.covariance import LedoitWolf, GraphicalLasso
 from sklearn.model_selection import train_test_split
 from torch import nn
 import torch.nn.functional as F
+
+import settings
 from preconditioners.cov_approx.variance import var_solve
 
 import preconditioners.settings
@@ -486,5 +488,39 @@ class MLP(nn.Module):
         self.output_layer.reset_parameters()
 
 
+def train(model, train_dataset, optimizer, loss_function, n_epochs, print_every=1):
+    current_loss = 0
+
+    for epoch in range(n_epochs):
+        model.train()
+
+        # Get and prepare inputs
+        inputs, targets = train_dataset[:]
+        # Set the inputs and targets to the device
+        inputs, targets = inputs.double().to(settings.DEVICE), targets.double().to(settings.DEVICE)
+        targets = targets.reshape((targets.shape[0], 1))
+
+        # Zero the gradients
+        optimizer.zero_grad()
+
+        # Perform forward pass
+        outputs = model(inputs)
+
+        # Compute loss
+        loss = loss_function(outputs, targets)
+
+        # Perform backward pass
+        loss.backward()
+
+        # Perform optimization
+        optimizer.step()
+
+        # Update statistics
+        current_loss = loss.item()
+
+        if epoch % print_every == 0:
+            print(f'Epoch {epoch + 1}: Train loss: {current_loss:.4f}')
+
+    return current_loss
 
 

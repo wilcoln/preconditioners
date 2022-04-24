@@ -1,6 +1,8 @@
 import torch
 from torch.optim.optimizer import Optimizer
 
+from utils import model_gradients_using_backprop
+
 
 class PrecondBase(Optimizer):
     """Implements preconditionned gradient descent"""
@@ -128,3 +130,6 @@ class PrecondBase(Optimizer):
 
     def _compute_p_inv(self) -> torch.Tensor:
         raise NotImplementedError
+
+    def _compute_grad_of_data(self, data) -> torch.Tensor:
+        return torch.cat([model_gradients_using_backprop(self.model, x).T for x in torch.unbind(data)], 0)
