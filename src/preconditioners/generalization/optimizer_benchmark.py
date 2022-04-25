@@ -47,11 +47,13 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
     epoch = 0
     # stop if 5 consecutive epochs have no improvement
     no_improvement_counter = 0
+    condition = None
 
-    while current_loss > tol and epoch < max_iter and no_improvement_counter < 5:
-        previous_loss = current_loss
-
+    while not condition:
         model.train()
+
+        previous_loss = current_loss
+        previous_model_state = model.state_dict()
 
         # Get and prepare inputs
         inputs, targets = train_data[:]
@@ -83,16 +85,29 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
         # Update statistics
         current_loss = loss.item()
 
-        if np.abs(current_loss - previous_loss) < 1e-2:
-            no_improvement_counter += 1
-        else:
-            no_improvement_counter = 0
-
         epoch += 1
 
+        # Print statistics
         if epoch % print_every == 0:
             print(f'Epoch {epoch}: Train loss: {current_loss:.4f}')
-    print(f'Epoch {epoch}: Train loss: {current_loss:.4f}')
+
+        # Update condition
+        if current_loss <= tol:
+            condition = 'tol'
+        elif epoch >= max_iter:
+            condition = 'max_iter'
+        else:
+            delta_loss = current_loss - previous_loss
+            no_improvement_counter += 1 if np.abs(delta_loss) < 1e-3 else 0
+            if no_improvement_counter > 5:  # stagnation
+                condition = 'stagnation'
+            elif delta_loss > 1e3:
+                condition = 'explosion'
+                model.load_state_dict(previous_model_state)  # recover previous model
+
+    # Final print
+    print('*** FINAL EPOCH ***')
+    print(f'Epoch {epoch}: Train loss: {current_loss:.4f}, Stop condition: {condition}')
     return current_loss
 
 
