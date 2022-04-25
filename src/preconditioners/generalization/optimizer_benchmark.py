@@ -101,9 +101,10 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
             no_improvement_counter += 1 if np.abs(delta_loss) < 1e-3 else 0
             if no_improvement_counter > 5:  # stagnation
                 condition = 'stagnation'
-            elif delta_loss > 1e3:
-                condition = 'explosion'
+            elif delta_loss > 1e-3:
+                condition = 'overshooting'
                 model.load_state_dict(previous_model_state)  # recover previous model
+                current_loss = previous_loss
 
     # Final print
     print('*** FINAL EPOCH ***')
