@@ -4,13 +4,11 @@ import jax.numpy as jnp
 import kfac_jax
 
 # Hyper parameters
-from icecream import ic
-
 L2_REG = 1e-3
-NUM_EPOCHS = 100
 
 
-def train(input_dataset, mlp_output_sizes):
+def train(input_dataset, mlp_output_sizes, max_iter):
+    NUM_EPOCHS = max_iter
 
     def model_fn(x):
         """A Haiku MLP model function - three hidden layer network with tanh."""
@@ -33,7 +31,8 @@ def train(input_dataset, mlp_output_sizes):
 
         # The optimizer assumes that the function you provide has already added
         # the L2 regularizer to its gradients.
-        return loss + L2_REG * kfac_jax.utils.inner_product(model_params, model_params) / 2.0
+        # return loss + L2_REG * kfac_jax.utils.inner_product(model_params, model_params) / 2.0
+        return loss
 
     # Create the optimizer
     optimizer = kfac_jax.Optimizer(
