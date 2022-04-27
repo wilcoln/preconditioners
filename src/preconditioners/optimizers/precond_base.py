@@ -7,8 +7,8 @@ from utils import model_gradients_using_backprop
 class PrecondBase(Optimizer):
     """Implements preconditionned gradient descent"""
 
-    def __init__(self, model, lr, labeled_data, unlabeled_data):
-        defaults = dict(lr=lr, labeled_data=labeled_data, unlabeled_data=unlabeled_data)
+    def __init__(self, model, lr, labeled_data, unlabeled_data, damping=1.0) -> None:
+        defaults = dict(lr=lr, labeled_data=labeled_data, unlabeled_data=unlabeled_data, damping=damping)
         super(PrecondBase, self).__init__(model.parameters(), defaults)
 
         self.known_modules = {'Linear'}
