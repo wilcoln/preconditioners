@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import kfac_jax
 
 # Hyper parameters
-L2_REG = 1e-3
+L2_REG = 0
 
 
 def train(input_dataset, mlp_output_sizes, max_iter):
@@ -31,8 +31,7 @@ def train(input_dataset, mlp_output_sizes, max_iter):
 
         # The optimizer assumes that the function you provide has already added
         # the L2 regularizer to its gradients.
-        # return loss + L2_REG * kfac_jax.utils.inner_product(model_params, model_params) / 2.0
-        return loss
+        return loss + L2_REG * kfac_jax.utils.inner_product(model_params, model_params) / 2.0
 
     # Create the optimizer
     optimizer = kfac_jax.Optimizer(

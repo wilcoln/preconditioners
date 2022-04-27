@@ -2,6 +2,7 @@
 import math
 import os
 import json
+import pickle
 from collections import defaultdict
 
 import numpy as np
@@ -27,6 +28,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--num_layers', help='Number of layers', default=1, type=int)
 parser.add_argument('--num_runs', help='Number of runs', default=1, type=int)
 parser.add_argument('--max_iter', help='Max epochs', default=100, type=int)
+parser.add_argument('--test_train_ratio', help='Test train ratio', default=1, type=int)
+parser.add_argument('--train_size', help='Train size', default=10, type=int)
 parser.add_argument('--width', help='Hidden channels', type=int)
 args = parser.parse_args()
 
@@ -158,10 +161,10 @@ loss_function = torch.nn.MSELoss()
 if args.width:  # 3-MLP
     num_layers = 3
     width = args.width
-    train_size = 100
+    train_size = args.train_size
     num_params = (1 + d) * width + width**2
     extra_size = max(2*num_params - train_size, 10*train_size)
-    test_size = train_size
+    test_size = args.test_train_ratio*train_size
 else:
     num_layers = args.num_layers
     extra_size = 1000
@@ -247,8 +250,10 @@ if __name__ == '__main__':
         'train_size': train_size,
         'test_size': test_size,
         'loss_function': str(loss_function),
+        'num_runs': args.num_runs,
         'num_layers': num_layers,
         'max_iter': max_iter,
+        'test_train_ratio': args.test_train_ratio,
         'r2': r2,
         'ro': ro,
     }
@@ -259,9 +264,18 @@ if __name__ == '__main__':
     folder_name = dtstamp + '_' + '_'.join([f'{k}={v}' for k, v in params_dict.items()])
     folder_path = os.path.join(plots_dir, 'optimizer_benchmark', folder_name)
     os.makedirs(folder_path)
-    plt.savefig(os.path.join(folder_path, filename), format='pdf')
+
+    # Save params
     with open(os.path.join(folder_path, 'params.json'), 'w') as f:
         json.dump(params_dict, f)
+    # Save test_errors
+    with open(os.path.join(folder_path, 'test_errors.pkl'), 'wb') as f:
+        pickle.dump(test_errors, f)
+    # Save mean_test_errors
+    with open(os.path.join(folder_path, 'mean_test_errors.pkl'), 'wb') as f:
+        pickle.dump(mean_test_errors, f)
+    # Save figure
+    plt.savefig(os.path.join(folder_path, filename), format='pdf')
 
     # Print path to results
     print(f'Results saved to {folder_path}')
