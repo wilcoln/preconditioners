@@ -1,13 +1,13 @@
 import haiku as hk
 import jax
 import jax.numpy as jnp
-import kfac_jax
+from . import kfac_jax
 
 # Hyper parameters
 L2_REG = 0
 
 
-def train(input_dataset, mlp_output_sizes, max_iter):
+def train(input_dataset, mlp_output_sizes, max_iter, initial_damping):
     NUM_EPOCHS = max_iter
 
     def model_fn(x):
@@ -43,7 +43,7 @@ def train(input_dataset, mlp_output_sizes, max_iter):
         use_adaptive_learning_rate=True,
         use_adaptive_momentum=True,
         use_adaptive_damping=True,
-        initial_damping=1.0,
+        initial_damping=initial_damping,
         multi_device=False,
     )
 

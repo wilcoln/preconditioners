@@ -251,7 +251,7 @@ if __name__ == '__main__':
                     print(f'\n\nOptimizer: {optim_cls.__name__}')
                     if optim_cls.__name__ == 'Kfac':
                         mlp_output_sizes = ([width] * (num_layers - 1) if num_layers > 1 else []) + [1]
-                        train_loss, hk_model, params = kfac_train(train_data, mlp_output_sizes, max_iter)
+                        train_loss, hk_model, params = kfac_train(train_data, mlp_output_sizes, max_iter, args.damping)
                         test_loss = kfac_test(hk_model, params, test_data)
                     else:
                         # Instantiate the optimizer

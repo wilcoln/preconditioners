@@ -6,3 +6,4 @@ DEVICE = torch.device('cpu')  # torch.device('cuda' if torch.cuda.is_available()
 
 NUM_WORKERS = 4
 BATCH_SIZE = 1000
+USE_GRAPHICAL_LASSO = False
