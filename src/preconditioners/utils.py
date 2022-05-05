@@ -387,8 +387,33 @@ def recover_flattened(flat_params, indices, model):
     return l
 
 
+def model_gradients(model, x):
+    """Computes model gradients -- used for computing NTK features"""
+    grad_list = []
+    num_examples = len(x)
+
+    grad_tensor = torch.tensor([])
+    for example in x:
+        # For each example, compute the gradient
+        example_grad_tensor = torch.tensor([] * num_examples)
+        output = model(example)
+        gradient = torch.autograd.grad(output, model.parameters(), retain_graph=True)
+        # TODO: add GPU support (move from GPU to CPU)
+        for i in range(len(gradient)):
+            example_grad_tensor = torch.cat((example_grad_tensor, gradient[i].reshape(-1)))
+
+        # Add example gradients to grad_tensor
+        if grad_tensor.nelement()==0:
+            grad_tensor = example_grad_tensor.clone().detach().reshape(1, -1)
+        else:
+            grad_tensor = torch.cat((grad_tensor, example_grad_tensor.reshape(1, -1)))
+
+    return grad_tensor
+
+
 def model_gradients_using_direct_computation(y, model):
-    param_grads = [param_gradient(y, param) for param in model.parameters()]
+    """Computes model gradients -- used in precond2.py"""
+    param_grads = [param_gradient(y, param)[0] for param in model.parameters()]
 
     return torch.cat([grad.view(-1) for grad in param_grads]).view(-1, 1)
 
@@ -403,6 +428,7 @@ def get_jacobian(net, x, noutputs):
 
 
 def model_gradients_using_backprop(model, x):
+    """Computes model gradients -- used in precond.py"""
     model.zero_grad()
     get_jacobian(model, x, noutputs=model.out_dim)
     grads = torch.cat([param.grad.view(-1) for param in model.parameters()]).view(-1, 1).detach()
