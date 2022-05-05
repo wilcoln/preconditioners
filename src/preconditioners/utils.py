@@ -514,6 +514,30 @@ class MLP(nn.Module):
         self.output_layer.reset_parameters()
 
 
+class LinearizedModel(nn.Module):
+    """Linear model for use with linearized models"""
+
+    def __init__(self, model):
+        super().__init__()
+
+        # Count the number of parameters in the model
+        self.num_params = 0
+        for param in model.parameters():
+            self.num_params += np.prod(param.size())
+        self.out_dim = model.out_dim
+
+        self.linear = nn.Linear(self.num_params, self.out_dim)
+
+        self.reset_parameters()
+
+    def forward(self, x):
+        x = self.linear(x)
+        return x
+
+    def reset_parameters(self):
+        # Set parameters to 0 at initialization
+        torch.nn.init.constant_(self.linear.weight, 0)
+
 def train(model, train_dataset, optimizer, loss_function, n_epochs, print_every=1):
     current_loss = 0
 
