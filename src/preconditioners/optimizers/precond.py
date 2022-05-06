@@ -24,17 +24,17 @@ class PrecondGD(PrecondBase):
         unlabeled_data = group['unlabeled_data']
 
         # Compute the gradient of the output on the labeled and unlabeled data w.r.t the model parameters
-        labeled_grad_list = [model_gradients_using_backprop(self.model, x) for x in torch.unbind(labeled_data)]
-        unlabeled_grad_list = [model_gradients_using_backprop(self.model, x) for x in torch.unbind(unlabeled_data)]
-
-        # Compute the fisher information matrix at this iteration
-        stacked_labeled_grads = torch.stack([grad @ grad.T for grad in labeled_grad_list])
-        stacked_unlabeled_grads = torch.stack([grad @ grad.T for grad in unlabeled_grad_list])
-
-        p = torch.sum(stacked_labeled_grads, 0) + torch.sum(stacked_unlabeled_grads, 0)
-        p *= 1 / (labeled_data.shape[0] + unlabeled_data.shape[0])
+        p = 0
+        for x in torch.unbind(labeled_data):
+            grad = model_gradients_using_backprop(self.model, x).detach()
+            p += grad @ grad.T
+        for x in torch.unbind(unlabeled_data):
+            grad = model_gradients_using_backprop(self.model, x).detach()
+            p += grad @ grad.T
 
         # Compute the inverse of the fisher information matrix
+        p *= 1 / (labeled_data.shape[0] + unlabeled_data.shape[0])
+
         # add damping to avoid division by zero
         p += torch.eye(p.shape[0]) * group['damping'] / torch.norm(p)
         p_inv = torch.cholesky_inverse(p)
