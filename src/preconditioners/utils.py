@@ -487,7 +487,7 @@ class SLP(nn.Module):
 class MLP(nn.Module):
     """ Single Layer Perceptron for regression. """
 
-    def __init__(self, in_channels, num_layers=2, hidden_channels=100):
+    def __init__(self, in_channels, num_layers=2, hidden_channels=100, std=1.):
         super().__init__()
         self.in_layer = nn.Linear(in_channels, hidden_channels, bias=False)
         self.hidden_layers = nn.ModuleList([
@@ -496,6 +496,7 @@ class MLP(nn.Module):
         ])
         self.output_layer = nn.Linear(hidden_channels, 1, bias=False)
         self.out_dim = 1
+        self.std = std
 
     def forward(self, x):
         """ Forward pass of the MLP. """
@@ -508,10 +509,10 @@ class MLP(nn.Module):
         return x
 
     def reset_parameters(self):
-        self.in_layer.reset_parameters()
+        torch.nn.init.normal_(self.in_layer.weight, 0, self.std)
         for layer in self.hidden_layers:
-            layer.reset_parameters()
-        self.output_layer.reset_parameters()
+            torch.nn.init.normal_(layer.weight, 0, self.std)
+        torch.nn.init.normal_(self.output_layer.weight, 0, self.std)
 
 
 class LinearizedModel(nn.Module):
