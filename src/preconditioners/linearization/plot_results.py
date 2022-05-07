@@ -1,3 +1,4 @@
+"""Plots results from the training_comparison experiment"""
 import argparse
 import os
 import pickle

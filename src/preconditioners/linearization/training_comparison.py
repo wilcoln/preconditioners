@@ -21,7 +21,7 @@ parser.add_argument('--width', help='Hidden channels', type=int)
 parser.add_argument('--max_iter', help='Max epochs', default=100, type=int)
 parser.add_argument('--damping', help='damping', type=float, default=1.0)
 parser.add_argument('--num_weights', help='Number of weights to analyse', type=float, default=100)
-parser.add_argument('--save_folder', help='Experiments are saved here', type=str)
+parser.add_argument('--save_folder', help='Experiments are saved here', type=str, default="experiments/")
 args = parser.parse_args()
 
 def train_step(model, inputs, targets, optimizer, loss_function, bias=0):
@@ -71,7 +71,7 @@ def train(model, model_lin, optimizer, optimizer_lin, train_data, loss_function,
     outputs = model_lin(ntk_features) + ntk_bias
     loss_lin = loss_function(outputs, targets)
 
-    def save_result(save_param_norm=False):
+    def log_result(save_param_norm=False):
         print(f'{epoch}\t{loss.item():.4f}\t{loss_lin.item():.4f}')
 
         # Compute frobenius norm of theta_t - theta_0
@@ -101,7 +101,7 @@ def train(model, model_lin, optimizer, optimizer_lin, train_data, loss_function,
             result['param_norm'] = torch.sqrt(frob_norm).item()
         results.append(result)
 
-    save_result(save_param_norm=True)
+    log_result(save_param_norm=True)
 
     while epoch < max_iter:
         loss = {'t':4 }
@@ -112,11 +112,11 @@ def train(model, model_lin, optimizer, optimizer_lin, train_data, loss_function,
 
         # Print statistics
         if epoch == 1 or epoch % save_every == 0:
-            save_result()
+            log_result()
 
     # Final print
     print(f'{epoch}\t{loss.item():.4f}\t{loss_lin.item():.4f}')
-    save_result()
+    log_result()
 
     return results
 

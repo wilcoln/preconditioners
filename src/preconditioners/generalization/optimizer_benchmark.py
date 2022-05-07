@@ -1,4 +1,8 @@
-""" Compare different optimizers and plot the results."""
+"""Compares the variance attained by different optimizers
+
+Example:
+python src/preconditioners/generalization/optimizer_benchmark.py --num_layers 3 --width 64
+"""
 import math
 import os
 import json
@@ -301,5 +305,3 @@ if __name__ == '__main__':
 
         # Save Results(
         save_results(test_errors, folder_path)
-
-

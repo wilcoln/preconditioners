@@ -1,3 +1,9 @@
+"""Computes eigenvalues of the preconditioned kernel over multiple n. Uses the
+empirical Fisher information for preconditioning
+
+Example:
+python src/preconditioners/eigenvalues/check_eigenvalues.py --max_width 12 --ntk
+"""
 import argparse
 import os
 from datetime import datetime as dt

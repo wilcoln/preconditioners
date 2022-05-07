@@ -1,3 +1,4 @@
+"""Plots results from the kernel_eigenvalues and fisher_eigenvalues experiment"""
 import argparse
 import os
 import pickle
