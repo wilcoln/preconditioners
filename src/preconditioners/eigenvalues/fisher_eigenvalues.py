@@ -1,14 +1,14 @@
-"""Computes eigenvalues of the preconditioned kernel over multiple n. Uses the
-empirical Fisher information for preconditioning
+"""Computes eigenvalues of the Fisher information for different n.
 
 Example:
-python src/preconditioners/eigenvalues/kernel_eigenvalues.py --max_width 12 --ntk
+python src/preconditioners/eigenvalues/fisher_eigenvalues.py --max_width 12 --ntk
 """
 import argparse
 import os
 from datetime import datetime as dt
 import pickle
 import json
+import torch
 
 from matplotlib import pyplot as plt
 from torch.utils.data import random_split
@@ -28,20 +28,15 @@ class CheckEigenValues:
         self.use_ntk = args.ntk
 
         # Dataset parameters
-        self.train_size = 50
-        self.extra_size = 10000
+        self.extra_size = 1000
         self.w_star = np.random.multivariate_normal(mean=np.zeros(self.d), cov=np.eye(self.d))
         self.c = generate_c(ro=.5, regime='autoregressive', d=self.d)
 
         self.save_folder = args.save_folder
 
     def create_dataset(self):
-        N = self.train_size + self.extra_size
-        self.dataset = CenteredLinearGaussianDataset(w_star=self.w_star, d=self.d, c=self.c, n=N)
-        self.train_dataset, self.extra_dataset = random_split(self.dataset, [self.train_size, self.extra_size])
-
-        self.labeled_data = self.train_dataset[:][0].double().to(settings.DEVICE)
-        self.unlabeled_data = self.extra_dataset[:][0].double().to(settings.DEVICE)
+        self.dataset = CenteredLinearGaussianDataset(w_star=self.w_star, d=self.d, c=self.c, n=self.extra_size)
+        self.dataset = self.dataset[:][0].double().to(settings.DEVICE)
 
     def create_model(self, width, use_ntk=False):
         std = 1
@@ -49,9 +44,9 @@ class CheckEigenValues:
             std /= np.sqrt(width)
 
         # Create model and optimizer
-        model = MLP(in_channels=self.labeled_data.shape[1], num_layers=3, hidden_channels=width, std=std).double().to(
+        model = MLP(in_channels=self.dataset.shape[1], num_layers=3, hidden_channels=width, std=std).double().to(
             settings.DEVICE)
-        self.optimizer = PrecondGD(model, lr=1e-2, labeled_data=self.labeled_data, unlabeled_data=self.unlabeled_data, verbose=False)
+        self.optimizer = PrecondGD(model, lr=1e-2, labeled_data=torch.tensor([]), unlabeled_data=self.dataset, verbose=False)
 
     def run(self):
         results = []
@@ -71,13 +66,10 @@ class CheckEigenValues:
             self.create_model(width, self.use_ntk)
 
             # Compute Fisher information
-            F_inv = self.optimizer._compute_p_inv()
-            # Compute kernel
-            grad = self.optimizer._compute_grad_of_data(self.labeled_data)
-            m = grad @ F_inv @ grad.T
+            fisher = self.optimizer._compute_fisher()
 
             #Compute eigenavalues
-            eigenvalues = np.linalg.eigvals(m)
+            eigenvalues = np.linalg.eigvals(fisher)
             log_result(width, eigenvalues)
         print("Finished!")
 
@@ -86,10 +78,11 @@ class CheckEigenValues:
 
     def save_results(self, results):
         dtstamp = str(dt.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
-        experiment_name = "kernel_eigenvalues_" + dtstamp
+        experiment_name = "fisher_eigenvalues_" + dtstamp
 
         params_dict = {
-            'use_ntk': self.use_ntk
+            'use_ntk': self.use_ntk,
+            'd': self.d
         }
 
         os.makedirs(os.path.join(self.save_folder, experiment_name))
