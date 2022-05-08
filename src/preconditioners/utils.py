@@ -331,7 +331,7 @@ def generate_centered_linear_gaussian_data(w_star, c, n=200, d=600, sigma2=1, fi
         warnings.warn('Warning, norms of datapoints are not sqrt(d)')
 
     # generate_noise
-    xi = np.random.multivariate_normal(np.zeros(n), sigma2 * np.eye(n))
+    xi = np.random.normal(0, sigma2, size=n)
 
     # generate response
     y = X.dot(w_star) + xi
