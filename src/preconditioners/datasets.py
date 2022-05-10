@@ -209,7 +209,8 @@ def data_random_split(data, sizes):
     idx = np.arange(x.shape[0])
     np.random.shuffle(idx)
     x_shuffled = x[idx]
-    y_shuffled = y[idx]
+    # TODO: move this out of here and in to the data generating funtions
+    y_shuffled = np.expand_dims(y[idx], 1)
 
     # Split it up
     split = []
