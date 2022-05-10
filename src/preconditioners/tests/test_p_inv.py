@@ -6,7 +6,7 @@ from torch.utils.data import random_split
 from preconditioners import settings
 from preconditioners.cov_approx.impl_cov_approx import *
 from preconditioners.datasets import CenteredLinearGaussianDataset
-from preconditioners.optimizers import PrecondGD, PrecondGD3
+from preconditioners.optimizers import PrecondGD
 from preconditioners.utils import generate_c, SLP
 
 
@@ -15,7 +15,7 @@ class TestPinv(unittest.TestCase):
     def setUp(self):
         d = 30
         train_size = 10
-        extra_size = 10000
+        extra_size = 100
         w_star = np.random.multivariate_normal(mean=np.zeros(d), cov=np.eye(d))
         self.c = generate_c(ro=.5, regime='autoregressive', d=d)
         self.dataset = CenteredLinearGaussianDataset(w_star=w_star, d=d, c=self.c, n=train_size + extra_size)
@@ -25,8 +25,8 @@ class TestPinv(unittest.TestCase):
         self.unlabeled_data = self.extra_dataset[:][0].double().to(settings.DEVICE)
 
         self.model = SLP(in_channels=self.dataset.X.shape[1]).double().to(settings.DEVICE)
-        self.optimizer = PrecondGD3(self.model, lr=1e-3, labeled_data=self.labeled_data,
-                                   unlabeled_data=self.unlabeled_data)
+        self.optimizer = PrecondGD(self.model, lr=1e-3, labeled_data=self.labeled_data,
+                                   unlabeled_data=self.unlabeled_data, damping=0)
 
     def test_p_inv_against_c_inv(self):
 
@@ -49,7 +49,7 @@ class TestPinv(unittest.TestCase):
         #true_p_inv += (1 / self.unlabeled_data.shape[0]) * self.unlabeled_data.T @ self.unlabeled_data
         true_p_inv = self.labeled_data.T @ self.labeled_data + self.unlabeled_data.T @ self.unlabeled_data
         true_p_inv *= 1/(self.labeled_data.shape[0] + self.unlabeled_data.shape[0])
-        true_p_inv = torch.inverse(true_p_inv)
+        true_p_inv = torch.cholesky_inverse(true_p_inv)
 
         mat_error = torch.norm(p_inv - true_p_inv)
 
