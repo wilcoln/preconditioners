@@ -20,8 +20,9 @@ from optimizers.kfac import Kfac, train as kfac_train, test as kfac_test
 from paths import plots_dir
 from preconditioners import settings
 from preconditioners.datasets import CenteredLinearGaussianDataset, CenteredQuadraticGaussianDataset
+from preconditioners.datasets import generate_true_parameter, generate_c, generate_W_star
 from preconditioners.optimizers import GradientDescent, PrecondGD, PrecondGD2, PrecondGD3
-from preconditioners.utils import generate_true_parameter, generate_c, SLP, MLP, generate_W_star
+from preconditioners.utils import SLP, MLP
 from datetime import datetime as dt
 
 

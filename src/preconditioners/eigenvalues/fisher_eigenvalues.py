@@ -14,9 +14,9 @@ from matplotlib import pyplot as plt
 from torch.utils.data import random_split
 
 from preconditioners import settings
-from preconditioners.datasets import CenteredLinearGaussianDataset
+from preconditioners.datasets import CenteredLinearGaussianDataset, generate_c
 from preconditioners.cov_approx.impl_cov_approx import *
-from preconditioners.utils import generate_c, MLP
+from preconditioners.utils import MLP, model_gradients
 from preconditioners.optimizers import PrecondGD
 
 
@@ -28,7 +28,7 @@ class CheckEigenValues:
         self.use_ntk = args.ntk
 
         # Dataset parameters
-        self.extra_size = 1000
+        self.extra_size = 100000
         self.w_star = np.random.multivariate_normal(mean=np.zeros(self.d), cov=np.eye(self.d))
         self.c = generate_c(ro=.5, regime='autoregressive', d=self.d)
 
@@ -44,12 +44,13 @@ class CheckEigenValues:
             std /= np.sqrt(width)
 
         # Create model and optimizer
-        model = MLP(in_channels=self.dataset.shape[1], num_layers=3, hidden_channels=width, std=std).double().to(
+        self.model = MLP(in_channels=self.dataset.shape[1], num_layers=3, hidden_channels=width, std=std).double().to(
             settings.DEVICE)
-        self.optimizer = PrecondGD(model, lr=1e-2, labeled_data=torch.tensor([]), unlabeled_data=self.dataset, verbose=False)
+        self.optimizer = PrecondGD(self.model, lr=1e-2, labeled_data=torch.tensor([]), unlabeled_data=self.dataset, verbose=False)
 
     def run(self):
         results = []
+        print("Creating the dataset")
         self.create_dataset()
 
         def log_result(width, eigenvalues):
@@ -67,6 +68,8 @@ class CheckEigenValues:
 
             # Compute Fisher information
             fisher = self.optimizer._compute_fisher()
+            # grad = model_gradients(self.model, self.dataset)
+            # fisher = grad.T @ grad / self.extra_size
 
             #Compute eigenavalues
             eigenvalues = np.linalg.eigvals(fisher)
@@ -82,7 +85,8 @@ class CheckEigenValues:
 
         params_dict = {
             'use_ntk': self.use_ntk,
-            'd': self.d
+            'd': self.d,
+            'n_data': self.extra_size
         }
 
         os.makedirs(os.path.join(self.save_folder, experiment_name))

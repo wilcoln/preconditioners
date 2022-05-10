@@ -4,9 +4,9 @@ from torch import nn
 from torch.utils.data import random_split
 
 from preconditioners import settings
-from preconditioners.datasets import CenteredLinearGaussianDataset
+from preconditioners.datasets import CenteredLinearGaussianDataset, generate_c
 from preconditioners.cov_approx.impl_cov_approx import *
-from preconditioners.utils import generate_c, SLP
+from preconditioners.utils import SLP
 from preconditioners.optimizers import PrecondGD, GradientDescent
 
 

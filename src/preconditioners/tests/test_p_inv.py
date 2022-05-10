@@ -5,9 +5,9 @@ from torch.utils.data import random_split
 
 from preconditioners import settings
 from preconditioners.cov_approx.impl_cov_approx import *
-from preconditioners.datasets import CenteredLinearGaussianDataset
+from preconditioners.datasets import CenteredLinearGaussianDataset, generate_c
 from preconditioners.optimizers import PrecondGD, PrecondGD3
-from preconditioners.utils import generate_c, SLP
+from preconditioners.utils import SLP
 
 
 class TestPinv(unittest.TestCase):

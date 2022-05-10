@@ -14,8 +14,8 @@ from jax.example_libraries import optimizers, stax
 from jax.nn.initializers import normal
 from jax.tree_util import tree_multimap
 
-from preconditioners.utils import generate_true_parameter, generate_c, generate_W_star
 from preconditioners.datasets import CenteredLinearGaussianDataset, CenteredQuadraticGaussianDataset
+from preconditioners.datasets import generate_true_parameter, generate_c, generate_W_star
 from preconditioners.optimizers.kfac import kfac_jax
 
 L2_REG = 0.

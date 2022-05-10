@@ -10,10 +10,10 @@ from datetime import datetime as dt
 from torch.utils.data import random_split
 
 from preconditioners import settings
-from preconditioners.utils import generate_true_parameter, generate_c, SLP, MLP, LinearizedModel, generate_W_star
+from preconditioners.utils import SLP, MLP, LinearizedModel, model_gradients
 from preconditioners.datasets import CenteredLinearGaussianDataset, CenteredQuadraticGaussianDataset
+from preconditioners.datasets import generate_true_parameter, generate_c, generate_W_star
 from preconditioners.optimizers import GradientDescent, PrecondGD, PrecondGD2, PrecondGD3
-from preconditioners.utils import model_gradients
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--num_layers', help='Number of layers', default=1, type=int)
@@ -104,7 +104,6 @@ def train(model, model_lin, optimizer, optimizer_lin, train_data, loss_function,
     log_result(save_param_norm=True)
 
     while epoch < max_iter:
-        loss = {'t':4 }
         loss = train_step(model, inputs, targets, optimizer, loss_function)
         loss_lin = train_step(model_lin, ntk_features, targets, optimizer_lin, loss_function, ntk_bias)
 

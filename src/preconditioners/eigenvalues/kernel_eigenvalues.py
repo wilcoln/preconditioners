@@ -14,9 +14,9 @@ from matplotlib import pyplot as plt
 from torch.utils.data import random_split
 
 from preconditioners import settings
-from preconditioners.datasets import CenteredLinearGaussianDataset
+from preconditioners.datasets import CenteredLinearGaussianDataset, generate_c
 from preconditioners.cov_approx.impl_cov_approx import *
-from preconditioners.utils import generate_c, MLP
+from preconditioners.utils import MLP
 from preconditioners.optimizers import PrecondGD
 
 
@@ -26,10 +26,11 @@ class CheckEigenValues:
         self.widths = np.arange(args.min_width, args.max_width + 1, args.width_step)
         self.d = 5
         self.use_ntk = args.ntk
+        self.damping = args.damping
 
         # Dataset parameters
         self.train_size = 50
-        self.extra_size = 10000
+        self.extra_size = args.extra_size
         self.w_star = np.random.multivariate_normal(mean=np.zeros(self.d), cov=np.eye(self.d))
         self.c = generate_c(ro=.5, regime='autoregressive', d=self.d)
 
@@ -51,7 +52,7 @@ class CheckEigenValues:
         # Create model and optimizer
         model = MLP(in_channels=self.labeled_data.shape[1], num_layers=3, hidden_channels=width, std=std).double().to(
             settings.DEVICE)
-        self.optimizer = PrecondGD(model, lr=1e-2, labeled_data=self.labeled_data, unlabeled_data=self.unlabeled_data, verbose=False)
+        self.optimizer = PrecondGD(model, lr=1e-2, labeled_data=self.labeled_data, unlabeled_data=self.unlabeled_data, verbose=False, damping=self.damping)
 
     def run(self):
         results = []
@@ -74,7 +75,7 @@ class CheckEigenValues:
             F_inv = self.optimizer._compute_p_inv()
             # Compute kernel
             grad = self.optimizer._compute_grad_of_data(self.labeled_data)
-            m = grad @ F_inv @ grad.T
+            m = grad @ F_inv @ grad.T / width
 
             #Compute eigenavalues
             eigenvalues = np.linalg.eigvals(m)
@@ -89,7 +90,10 @@ class CheckEigenValues:
         experiment_name = "kernel_eigenvalues_" + dtstamp
 
         params_dict = {
-            'use_ntk': self.use_ntk
+            'use_ntk': self.use_ntk,
+            'damping': self.damping,
+            'num_extra_data': self.extra_size,
+            'num_train_data': self.train_size
         }
 
         os.makedirs(os.path.join(self.save_folder, experiment_name))
@@ -107,6 +111,8 @@ if __name__ == "__main__":
     parser.add_argument('--width_step', help='Width step', default=4, type=int)
     parser.add_argument('--ntk', action='store_true', help='Use NTK parameterisation')
     parser.add_argument('--save_folder', help='Experiments are saved here', type=str, default="experiments/")
+    parser.add_argument('--damping', help='Damping applied in NGD', type=float, default="0.")
+    parser.add_argument('--extra_size', help='Number of data points used to compute F', type=int, default="10000")
 
     args = parser.parse_args()
 
