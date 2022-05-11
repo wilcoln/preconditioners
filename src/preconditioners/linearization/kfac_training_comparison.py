@@ -1,3 +1,4 @@
+"""Compares training of MLP and lienarized model using KFAC"""
 import argparse
 import numpy as np
 import operator
@@ -6,116 +7,167 @@ import os
 import pickle
 import json
 
-from torch.utils.data import random_split
-import haiku as hk
 import jax
 import jax.numpy as jnp
-from jax.example_libraries import optimizers, stax
+from jax.example_libraries import stax
 from jax.nn.initializers import normal
-from jax.tree_util import tree_multimap
+from jax.tree_util import tree_map
 
-from preconditioners.datasets import CenteredLinearGaussianDataset, CenteredQuadraticGaussianDataset
-from preconditioners.datasets import generate_true_parameter, generate_c, generate_W_star
+from preconditioners.datasets import generate_data, data_random_split
 from preconditioners.optimizers.kfac import kfac_jax
 
-L2_REG = 0.
-
 parser = argparse.ArgumentParser()
-parser.add_argument('--num_layers', help='Number of layers', default=3, type=int)
-parser.add_argument('--width', help='Hidden channels', type=int, default=5)
-parser.add_argument('--max_iter', help='Max epochs', default=100, type=int)
-parser.add_argument('--save_every', help='Number of epochs per log', default=10, type=int)
-parser.add_argument('--damping', help='damping', type=float, default=1.0)
+# Model params
+parser.add_argument('--num_layers', help='Number of layers', type=int, default=3)
+parser.add_argument('--width', help='Hidden channels', type=int, default=128)
+# Optimizer params
+parser.add_argument('--lr', help='Learning rate', type=float, default=1e-1)
+parser.add_argument('--damping', help='Damping coefficient', type=float, default=1e-1)
+parser.add_argument('--l2', help='L2-regularization coefficient', type=float, default=0.)
+parser.add_argument('--full_model_fisher', help='If set, will apply the FI of '\
+    'the full model to the linear model', action='store_true')
+# Data params
+parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic'], default='linear')
+parser.add_argument('--train_size', help='Number of train examples', type=int, default=64)
+parser.add_argument('--test_size', help='Number of test examples', type=int, default=64)
+parser.add_argument('--in_dim', help='Dimension of features', type=int, default=8)
+# Experiment params
+parser.add_argument('--max_iter', help='Max epochs', type=int, default=256)
+parser.add_argument('--save_every', help='Number of epochs per log', type=int, default=8)
 parser.add_argument('--save_folder', help='Experiments are saved here', type=str, default="experiments/")
+parser.add_argument('--num_test_points', help='Number of test points to analyse', type=int, default=32)
 args = parser.parse_args()
 
-def train(model, model_lin, params, params_lin, loss_fn, loss_fn_lin, train_data, test_data, key, num_test_points=7, max_iter=float('inf'), save_every=10):
-    """Trains both models"""
-    # Detach dataset
-    x_train, y_train = train_data[:]
-    x_train, y_train = x_train.cpu().numpy(), y_train.cpu().numpy()
-    train_data = (x_train, y_train)
+class TrainingComparison:
+    """KFAC experiment for comparing MLP against its linearization"""
 
-    # Choose random test points to analyse
-    x_test, y_test = test_data[:]
-    x_test, y_test = x_test.cpu().numpy(), y_test.cpu().numpy()
-    test_data = (x_test, y_test)
-    test_indices = np.random.randint(0, x_test.shape[0], size=num_test_points)
-    x_rand_test = np.array([x_test[i] for i in test_indices])
+    def __init__(self, model, params, lr=1e-1, damping=1e-1, l2=0.):
+        self.model = model
+        self.params = params
+        self.init_params = params
+        self.results = []
+        self.epoch = 0
 
-    # Create optimizer for MLP
-    optimizer = create_optimizer(loss_fn)
-    key, sub_key = jax.random.split(key)
-    opt_state = optimizer.init(params, sub_key, train_data)
+        self.lr = lr
+        self.damping = damping
+        self.l2 = l2
 
-    # Create optimizer for linearized model
-    optimizer_lin = create_optimizer(loss_fn_lin)
-    key, sub_key = jax.random.split(key)
-    opt_state_lin = optimizer_lin.init(params_lin, sub_key, train_data)
+        # Create linearized model
+        self.model_lin, self.params_lin = create_linearized_model(model, params)
 
-    results = []
-    epoch = 0
+        self.loss_fn = create_loss_fn(self.model, self.l2)
+        self.loss_fn_lin = create_loss_fn(self.model_lin, self.l2)
 
-    init_params = params
+        self.optimizer = None
+        self.opt_state = None
 
-    print("Starting training...")
-    print("Epoch\tLoss\tLinear\tTest\tLinear")
+        # Used for computing the Fisher
+        self._optimizer_lin = None
+        self._opt_state_lin = None
+        self._grad_loss_lin = None
 
-    def log_result():
+        self._done_initial_print = False
+
+    def setup(self, train_data, key):
+        """Prepares both models for training"""
+        # Create optimizer for MLP
+        self.optimizer = create_optimizer(self.loss_fn, self.l2)
+        key, sub_key = jax.random.split(key)
+        self.opt_state = self.optimizer.init(self.params, sub_key, train_data)
+
+        # Create optimizer for linearized model
+        self._optimizer_lin = create_optimizer(self.loss_fn, self.l2)
+        key, sub_key = jax.random.split(key)
+        self._opt_state_lin = self._optimizer_lin.init(self.params_lin, sub_key, train_data)
+        self._grad_loss_lin = jax.grad(self.loss_fn_lin)
+
+        # Make one step to compute Fisher at initialization
+        key, sub_key = jax.random.split(key)
+        _, self._opt_state_lin, _ = self._optimizer_lin.step(self.params_lin,
+            self._opt_state_lin, sub_key, momentum=0., damping=self.damping,
+            learning_rate=self.lr, batch=train_data)
+
+    def step(self, train_data, key):
+        """Performs one step of training for both the MLP and linearized model"""
+        # Update MLP
+        key, sub_key = jax.random.split(key)
+        self.params, self.opt_state, _ = self.optimizer.step(
+            self.params, self.opt_state, sub_key, momentum=0., damping=self.damping,
+            learning_rate=self.lr, batch=train_data)
+
+        # Update linearized model
+        grad = self._grad_loss_lin(self.params_lin, train_data)
+        grad_update = self._optimizer_lin._estimator.multiply_inverse(
+            self._opt_state_lin.estimator_state, grad, self.damping,
+            exact_power=False, use_cached=True)
+        grad_update = kfac_jax.utils.scalar_mul(grad_update, self.lr)
+        self.params_lin = jax.tree_map(jnp.subtract, self.params_lin, grad_update)
+
+        self.epoch += 1
+
+    def log_result(self, train_data, test_data, random_test_features=None, verbose=True):
         # Get train and test loss
-        loss = test(model, params, train_data)
-        loss_lin = test(model_lin, params_lin, train_data)
-        test_loss = test(model, params, test_data)
-        test_loss_lin = test(model_lin, params_lin, test_data)
+        loss, loss_lin = self._eval(train_data)
+        test_loss, test_loss_lin = self._eval(test_data)
 
-        print(f'{epoch}\t{loss:.4f}\t{loss_lin:.4f}\t{test_loss:.4f}\t{test_loss_lin:.4f}')
+        if verbose:
+            if not self._done_initial_print:
+                print("Epoch\tLoss\tLinear\tTest\tLinear")
+                self._done_initial_print = True
+            print(f'{self.epoch}\t{loss:.4f}\t{loss_lin:.4f}\t{test_loss:.4f}\t{test_loss_lin:.4f}')
 
         # Distance of parameter from initialization
-        dist_from_init = param_dist(params, init_params)
-
-        # Get output on random test points
-        random_test_output = model(params, x_rand_test)
-        random_test_output = [float(random_test_output[i]) for i in range(x_rand_test.shape[0])]
-        random_test_output_lin = model_lin(params_lin, x_rand_test)
-        random_test_output_lin = [float(random_test_output_lin[i]) for i in range(x_rand_test.shape[0])]
+        dist_from_init = param_dist(self.params, self.init_params)
 
         result = {
-            'epoch': epoch,
+            'epoch': self.epoch,
             'train_loss': loss,
             'train_loss_lin': loss_lin,
             'test_loss': test_loss,
             'test_loss_lin': test_loss_lin,
-            'frob_distance': dist_from_init,
-            'random_test_output': random_test_output,
-            'random_test_output_lin': random_test_output_lin
+            'frob_distance': dist_from_init
         }
-        if epoch == 0:
-            result['param_norm'] = param_dist(params, 0)
 
-        results.append(result)
+        # Get output on random test points
+        if random_test_features is not None:
+            random_test_output = self.model(self.params, random_test_features)
+            random_test_output = [float(random_test_output[i]) for i in range(random_test_features.shape[0])]
+            random_test_output_lin = self.model_lin(self.params_lin, random_test_features)
+            random_test_output_lin = [float(random_test_output_lin[i]) for i in range(random_test_features.shape[0])]
 
-    # Sanity check
-    log_result()
+            result['random_test_output'] = random_test_output
+            result['random_test_output_lin'] = random_test_output_lin
 
-    while epoch < max_iter:
-        # Train models
-        key, sub_key = jax.random.split(key)
-        params, opt_state, stats = optimizer.step(params, opt_state, sub_key, momentum=0., damping=damping, learning_rate=lr, batch=train_data)
+        if self.epoch == 0:
+            result['param_norm'] = param_dist(self.params, 0)
 
-        grad_update = optimizer_lin._compute_preconditioned_gradient(
-            opt_state_lin, grad_loss_lin(params_lin, train_data), lr**2)
-        params_lin = jax.tree_map(jnp.subtract, params_lin, grad_update)
+        self.results.append(result)
 
-        epoch += 1
+    def save_results(self, folder_path, params_dict={}):
+        """Saves experiment results"""
+        # Create experiment folder
+        dtstamp = str(dt.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
+        experiment_name = "training_comparison_" + dtstamp
+        os.makedirs(os.path.join(folder_path, experiment_name))
 
-        # Print statistics
-        if epoch % save_every == 0:
-            log_result()
+        params_dict['max_epoch'] = self.epoch
 
-    # Final log
-    log_result()
+        # Dump results and params
+        with open(os.path.join(folder_path, experiment_name, 'results.pkl'), 'wb') as f:
+            pickle.dump(self.results, f)
+        with open(os.path.join(folder_path, experiment_name, 'params.json'), 'w') as f:
+            json.dump(params_dict, f)
 
-    return results
+    def _eval(self, input_dataset):
+        """Tests the models on labelled data"""
+        x, y = input_dataset
+        y_hats = self.model(self.params, x)
+        loss = jnp.mean(jnp.square(y_hats - y))
+
+        y_hats_lin = self.model_lin(self.params_lin, x)
+        loss_lin = jnp.mean(jnp.square(y_hats_lin - y))
+
+        return float(loss), float(loss_lin)
 
 def param_dist(params_1, params_2=0):
     """Computes the Frobenius distance between two parameter lists"""
@@ -150,15 +202,7 @@ def create_model(width, num_layers, in_dim, out_dim, key):
 
     _, params = init_fn(key, (-1, in_dim))
 
-    def loss_fn(params, batch):
-        x, y = batch
-        y_hats = f(params, x)
-
-        kfac_jax.register_squared_error_loss(y_hats, y)
-        loss = jnp.mean(jnp.square(y_hats - y)) + L2_REG * kfac_jax.utils.inner_product(params, params) / 2.0
-        return loss
-
-    return f, loss_fn, params
+    return f, params
 
 def create_linearized_model(model, init_params):
     """Creates linearized model"""
@@ -167,97 +211,74 @@ def create_linearized_model(model, init_params):
         f_params_x, proj = jax.jvp(lambda param: model(param, *args, **kwargs),
                                (init_params,), (params_lin,))
         return tree_map(operator.add, f_params_x, proj)
+    params_lin = params
 
-    def loss_fn_lin(params, batch):
+    return f_lin, params_lin
+
+def create_loss_fn(model, l2):
+    """Creates l2 loss function for a given model"""
+    def loss_fn(params, batch):
         x, y = batch
-        y_hats = f_lin(params, x)
+        y_hats = model(params, x)
 
         kfac_jax.register_squared_error_loss(y_hats, y)
-        loss = jnp.mean(jnp.square(y_hats - y)) +  + L2_REG * kfac_jax.utils.inner_product(params, params) / 2.0
+        reg = kfac_jax.utils.inner_product(params, params) / 2.0
+        loss = jnp.mean(jnp.square(y_hats - y)) + l2 * reg
         return loss
 
-    params_lin = params
-    return f_lin, loss_fn_lin, params_lin
+    return loss_fn
 
-def create_optimizer(loss_fn):
+def create_optimizer(loss_fn, l2):
     """Creates the KFAC optimizer"""
     return kfac_jax.Optimizer(
         value_and_grad_func=jax.value_and_grad(loss_fn),
-        l2_reg=L2_REG,
+        l2_reg=l2,
         value_func_has_aux=False,
         value_func_has_state=False,
         value_func_has_rng=False,
         multi_device=False
     )
 
-def test(model, model_params, input_dataset):
-    """Tests the model on labelled data"""
-    x, y = input_dataset
-    y_hats = model(model_params, x)
-    loss = jnp.mean(jnp.square(y_hats - y))
-
-    return float(loss)
-
-def save_results(results, params_dict, folder_path):
-    dtstamp = str(dt.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
-    experiment_name = "TMP_training_comparison_" + dtstamp
-
-    os.makedirs(os.path.join(folder_path, experiment_name))
-
-    with open(os.path.join(folder_path, experiment_name, 'results.pkl'), 'wb') as f:
-        pickle.dump(results, f)
-    with open(os.path.join(folder_path, experiment_name, 'params.json'), 'w') as f:
-        json.dump(params_dict, f)
-
 if __name__ == "__main__":
-    # Generate data
-    d = 10
-    train_size, test_size, extra_size = 100, 100, 0
-    dataset = generate_data(
-            'quadratic',
-            n=train_size + test_size + extra_size,
-            d=d,
-            regime='autoregressive',
-            ro=0.5,
-            r1=1,
-            sigma2=1)
-    # dataset = generate_data(
-    #         'linear',
-    #         n=train_size + test_size + extra_size,
-    #         d=d,
-    #         regime='autoregressive',
-    #         ro=0.5,
-    #         r1=1,
-    #         r2=1,
-    #         sigma2=0.001)
-    # dataset = generate_data(
-    #         'linear',
-    #         n=train_size + test_size + extra_size,
-    #         d=d)
-    train_data, test_data, extra_data = data_random_split(dataset, (train_size, test_size, extra_size))
+    train_size, test_size = args.train_size, args.test_size
+    dataset, in_dim = args.dataset, args.in_dim
+    width, num_layers = args.width, args.num_layers
+    lr, damping, l2 = args.lr, args.damping, args.l2
+    max_iter, save_every, num_test_points = args.max_iter, args.save_every, args.num_test_points
 
-    width, num_layers, max_iter, save_every = args.width, args.num_layers, args.max_iter, args.save_every
+    # Generate data
+    print("Generating data...")
+    dataset = generate_data(dataset, n=train_size + test_size, d=in_dim,
+        regime='autoregressive', ro=0.5, r1=1, sigma2=1)
+    train_data, test_data = data_random_split(dataset, (train_size, test_size))
+
+    # Choose random test points to analyse
+    x_test, y_test = test_data
+    test_indices = np.random.randint(0, x_test.shape[0], size=num_test_points)
+    x_rand_test = np.array([x_test[i] for i in test_indices])
 
     # Create MLP
     key = jax.random.PRNGKey(42)
-    model, loss_fn, params = create_model(width, num_layers, in_dim=d, out_dim=1, key=key)
+    model, params = create_model(width, num_layers, in_dim=in_dim, out_dim=1, key=key)
 
-    # Create linearized model
+    # Set up experiment
+    print("Setting up optimizers...")
+    experiment = TrainingComparison(model, params, lr=lr, damping=damping, l2=l2)
     key, sub_key = jax.random.split(key)
-    model_lin, loss_fn_lin, params_lin = create_linearized_model(model, params)
+    experiment.setup(train_data, sub_key)
 
-    # Training loop
-    results = train(model, model_lin, params, params_lin, loss_fn, loss_fn_lin, train_data, test_data, key, max_iter=max_iter, save_every=save_every)
+    # Run experiment
+    print("Starting training...")
+    experiment.log_result(train_data, test_data, x_rand_test)
+    while experiment.epoch < max_iter:
+        key, sub_key = jax.random.split(key)
+        experiment.step(train_data, sub_key)
 
-    params_dict = {
-        'extra_size': extra_size,
-        'd': d,
-        'train_size': train_size,
-        'test_size': test_size,
-        'num_layers': num_layers,
-        'max_iter': max_iter,
-        'width': width
-    }
+        if experiment.epoch % save_every == 0:
+            experiment.log_result(train_data, test_data, x_rand_test)
 
+    # Save results
     if args.save_folder:
-        save_results(results, params_dict, args.save_folder)
+        params_dict = vars(args)
+        experiment.save_results(args.save_folder, params_dict)
+        print("Saved results")
