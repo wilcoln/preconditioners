@@ -58,9 +58,6 @@ def train(model, model_lin, params, params_lin, loss_fn, loss_fn_lin, train_data
 
     init_params = params
 
-    stats = None
-    stats_lin = None
-
     print("Starting training...")
     print("Epoch\tLoss\tLinear\tTest\tLinear")
 
@@ -103,9 +100,11 @@ def train(model, model_lin, params, params_lin, loss_fn, loss_fn_lin, train_data
     while epoch < max_iter:
         # Train models
         key, sub_key = jax.random.split(key)
-        params, opt_state, stats = optimizer.step(params, opt_state, sub_key, batch=train_data)
-        key, sub_key = jax.random.split(key)
-        params_lin, opt_state_lin, stats_lin = optimizer_lin.step(params_lin, opt_state_lin, sub_key, batch=train_data)
+        params, opt_state, stats = optimizer.step(params, opt_state, sub_key, momentum=0., damping=damping, learning_rate=lr, batch=train_data)
+
+        grad_update = optimizer_lin._compute_preconditioned_gradient(
+            opt_state_lin, grad_loss_lin(params_lin, train_data), lr**2)
+        params_lin = jax.tree_map(jnp.subtract, params_lin, grad_update)
 
         epoch += 1
 
@@ -156,7 +155,7 @@ def create_model(width, num_layers, in_dim, out_dim, key):
         y_hats = f(params, x)
 
         kfac_jax.register_squared_error_loss(y_hats, y)
-        loss = jnp.mean(jnp.square(y_hats - y)) +  + L2_REG * kfac_jax.utils.inner_product(params, params) / 2.0
+        loss = jnp.mean(jnp.square(y_hats - y)) + L2_REG * kfac_jax.utils.inner_product(params, params) / 2.0
         return loss
 
     return f, loss_fn, params
@@ -164,10 +163,10 @@ def create_model(width, num_layers, in_dim, out_dim, key):
 def create_linearized_model(model, init_params):
     """Creates linearized model"""
     def f_lin(params, *args, **kwargs):
-        params_lin = tree_multimap(operator.sub, params, init_params)
+        params_lin = tree_map(operator.sub, params, init_params)
         f_params_x, proj = jax.jvp(lambda param: model(param, *args, **kwargs),
                                (init_params,), (params_lin,))
-        return tree_multimap(operator.add, f_params_x, proj)
+        return tree_map(operator.add, f_params_x, proj)
 
     def loss_fn_lin(params, batch):
         x, y = batch
@@ -188,26 +187,8 @@ def create_optimizer(loss_fn):
         value_func_has_aux=False,
         value_func_has_state=False,
         value_func_has_rng=False,
-        use_adaptive_learning_rate=True,
-        use_adaptive_momentum=True,
-        use_adaptive_damping=True,
-        initial_damping=1.,
         multi_device=False
     )
-
-def generate_quadratic_data(sigma2):
-    """Generates test data. Taken from optimizer_benchmark"""
-    global d, train_size, test_size, extra_size
-    w_star = generate_true_parameter(d, 1, m=np.eye(d))
-    W_star = generate_W_star(d, 1)
-    c = generate_c(0.5, regime='autoregressive', d=d)
-    dataset = CenteredQuadraticGaussianDataset(
-        W_star=W_star, w_star=w_star, d=d, c=c,
-        n=train_size + test_size + extra_size, sigma2=sigma2)
-
-    train_data, test_data, extra_data = random_split(dataset, [train_size, test_size, extra_size])
-
-    return train_data, test_data, extra_data
 
 def test(model, model_params, input_dataset):
     """Tests the model on labelled data"""
@@ -232,7 +213,28 @@ if __name__ == "__main__":
     # Generate data
     d = 10
     train_size, test_size, extra_size = 100, 100, 0
-    train_data, test_data, extra_data = generate_quadratic_data(sigma2=1)
+    dataset = generate_data(
+            'quadratic',
+            n=train_size + test_size + extra_size,
+            d=d,
+            regime='autoregressive',
+            ro=0.5,
+            r1=1,
+            sigma2=1)
+    # dataset = generate_data(
+    #         'linear',
+    #         n=train_size + test_size + extra_size,
+    #         d=d,
+    #         regime='autoregressive',
+    #         ro=0.5,
+    #         r1=1,
+    #         r2=1,
+    #         sigma2=0.001)
+    # dataset = generate_data(
+    #         'linear',
+    #         n=train_size + test_size + extra_size,
+    #         d=d)
+    train_data, test_data, extra_data = data_random_split(dataset, (train_size, test_size, extra_size))
 
     width, num_layers, max_iter, save_every = args.width, args.num_layers, args.max_iter, args.save_every
 

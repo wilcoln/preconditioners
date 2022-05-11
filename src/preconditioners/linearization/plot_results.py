@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--folder', help='Folder of experiment', type=str)
 parser.add_argument('--num_test_points', help='Number of test points to plot', type=int, default=5)
 parser.add_argument('--num_weights', help='Number of weights to plot', type=int, default=5)
-parser.add_argument('--max_iter', help='Maximum number of iterations to plot', type=int, default=100)
+parser.add_argument('--max_iter', help='Maximum number of iterations to plot', type=int, default=float('inf'))
 
 args = parser.parse_args()
 
@@ -103,13 +103,14 @@ if plot_random_weights:
 # Plot loss over epochs
 if plot_loss:
     train_lines = plt.plot(epochs, loss, label='MLP')
-    train_lin_lines = plt.plot(epochs, loss_lin, label='Linearized')
-    test_lines = plt.plot(epochs, test_loss, label='MLP', linestyle='dashed')
-    test_lines[0].set_color(train_lines[0].get_color())
-    test_lin_lines = plt.plot(epochs, test_loss_lin, label='Linearized', linestyle='dashed')
-    test_lin_lines[0].set_color(train_lin_lines[0].get_color())
+    test_lines = plt.plot(epochs, test_loss)
+    train_lin_lines = plt.plot(epochs, loss_lin, label='Linearized', linestyle='dashed')
+    test_lin_lines = plt.plot(epochs, test_loss_lin, linestyle='dashed')
+    train_lin_lines[0].set_color(train_lines[0].get_color())
+    test_lin_lines[0].set_color(test_lines[0].get_color())
     plt.xlabel(r'$t$')
     plt.ylabel('Train/Test Loss')
+    plt.legend()
     plt.show()
 
 # Plot test output over epochs
