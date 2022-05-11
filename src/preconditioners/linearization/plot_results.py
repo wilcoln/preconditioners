@@ -102,9 +102,9 @@ if plot_random_weights:
 
 # Plot loss over epochs
 if plot_loss:
-    train_lines = plt.plot(epochs, loss, label='MLP')
-    test_lines = plt.plot(epochs, test_loss)
-    train_lin_lines = plt.plot(epochs, loss_lin, label='Linearized', linestyle='dashed')
+    train_lines = plt.plot(epochs, loss, label='Train')
+    test_lines = plt.plot(epochs, test_loss, label='Test')
+    train_lin_lines = plt.plot(epochs, loss_lin, linestyle='dashed')
     test_lin_lines = plt.plot(epochs, test_loss_lin, linestyle='dashed')
     train_lin_lines[0].set_color(train_lines[0].get_color())
     test_lin_lines[0].set_color(test_lines[0].get_color())

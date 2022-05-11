@@ -1,4 +1,4 @@
-"""Compares training of MLP and lienarized model using KFAC"""
+"""Compares training of KFAC and KFAC using extra data"""
 import argparse
 import numpy as np
 import operator
@@ -28,6 +28,8 @@ parser.add_argument('--l2', help='L2-regularization coefficient', type=float, de
 parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic'], default='quadratic')
 parser.add_argument('--train_size', help='Number of train examples', type=int, default=128)
 parser.add_argument('--test_size', help='Number of test examples', type=int, default=128)
+parser.add_argument('--extra_size', help='Number of extra examples', type=int, default=256)
+parser.add_argument('--extra_includes_train', help='If true, extra data will also include the training examples', action='store_true')
 parser.add_argument('--in_dim', help='Dimension of features', type=int, default=8)
 parser.add_argument('--sigma2', help='Standard deviation of label noise', type=float, default=1)
 # Experiment params
@@ -37,13 +39,14 @@ parser.add_argument('--save_folder', help='Experiments are saved here', type=str
 parser.add_argument('--num_test_points', help='Number of test points to analyse', type=int, default=32)
 args = parser.parse_args()
 
-class LinearizationExperiment:
-    """KFAC experiment for comparing MLP against its linearization"""
+class ExtraDataExperiment:
+    """Compare KFAC with and without extra data"""
 
     def __init__(self, model, params, lr=1e-1, damping=1e-1, l2=0.):
         self.model = model
         self.params = params
-        self.init_params = params
+        self.params_extra = params
+
         self.results = []
         self.epoch = 0
 
@@ -51,94 +54,68 @@ class LinearizationExperiment:
         self.damping = damping
         self.l2 = l2
 
-        # Create linearized model
-        self.model_lin, self.params_lin = create_linearized_model(model, params)
-
         self.loss_fn = create_loss_fn(self.model, self.l2)
-        self.loss_fn_lin = create_loss_fn(self.model_lin, self.l2)
-
         self.optimizer = None
         self.opt_state = None
-
-        # Used for computing the Fisher
-        self._optimizer_lin = None
-        self._opt_state_lin = None
-        self._grad_loss_lin = None
+        self.optimizer_extra = None
+        self.opt_state_extra = None
+        self.grad_loss_extra = None
 
         self._done_initial_print = False
 
-    def setup(self, train_data, key):
+    def setup(self, train_data, extra_data, key):
         """Prepares both models for training"""
-        # Create optimizer for MLP
+        # Create optimizer for KFAC
         self.optimizer = create_optimizer(self.loss_fn, self.l2)
         key, sub_key = jax.random.split(key)
         self.opt_state = self.optimizer.init(self.params, sub_key, train_data)
 
-        # Create optimizer for linearized model
-        self._optimizer_lin = create_optimizer(self.loss_fn, self.l2)
+        # Create optimizer for KFAC-extra
+        self.optimizer_extra = create_optimizer(self.loss_fn, self.l2)
         key, sub_key = jax.random.split(key)
-        self._opt_state_lin = self._optimizer_lin.init(self.params_lin, sub_key, train_data)
-        self._grad_loss_lin = jax.grad(self.loss_fn_lin)
+        self.opt_state_extra = self.optimizer_extra.init(self.params_extra, sub_key, extra_data)
+        self.grad_loss = jax.grad(self.loss_fn)
 
-        # Make one step to compute Fisher at initialization
-        key, sub_key = jax.random.split(key)
-        _, self._opt_state_lin, _ = self._optimizer_lin.step(self.params_lin,
-            self._opt_state_lin, sub_key, momentum=0., damping=self.damping,
-            learning_rate=self.lr, batch=train_data)
-
-    def step(self, train_data, key):
-        """Performs one step of training for both the MLP and linearized model"""
-        # Update MLP
+    def step(self, train_data, extra_data, key):
+        """Performs one step of training for both models"""
+        # Update KFAC
         key, sub_key = jax.random.split(key)
         self.params, self.opt_state, _ = self.optimizer.step(
             self.params, self.opt_state, sub_key, momentum=0., damping=self.damping,
             learning_rate=self.lr, batch=train_data)
 
-        # Update linearized model
-        grad = self._grad_loss_lin(self.params_lin, train_data)
-        grad_update = self._optimizer_lin._estimator.multiply_inverse(
-            self._opt_state_lin.estimator_state, grad, self.damping,
+        # Update KFAC-extra
+        # Compute curvature via step
+        _, self.opt_state_extra, _ = self.optimizer_extra.step(
+            self.params_extra, self.opt_state_extra, sub_key, momentum=0.,
+            damping=self.damping, learning_rate=self.lr, batch=extra_data)
+        grad = self.grad_loss(self.params_extra, train_data)
+        grad_update = self.optimizer_extra._estimator.multiply_inverse(
+            self.opt_state_extra.estimator_state, grad, self.damping,
             exact_power=False, use_cached=True)
         grad_update = kfac_jax.utils.scalar_mul(grad_update, self.lr)
-        self.params_lin = jax.tree_map(jnp.subtract, self.params_lin, grad_update)
+        self.params_extra = jax.tree_map(jnp.subtract, self.params_extra, grad_update)
 
         self.epoch += 1
 
-    def log_result(self, train_data, test_data, random_test_features=None, verbose=True):
+    def log_result(self, train_data, test_data, verbose=True):
         # Get train and test loss
-        loss, loss_lin = self._eval(train_data)
-        test_loss, test_loss_lin = self._eval(test_data)
+        loss, loss_extra = self._eval(train_data)
+        test_loss, test_loss_extra = self._eval(test_data)
 
         if verbose:
             if not self._done_initial_print:
-                print("Epoch\tLoss\tLinear\tTest\tLinear")
+                print("Epoch\tLoss\tExtra\tTest\tExtra")
                 self._done_initial_print = True
-            print(f'{self.epoch}\t{loss:.4f}\t{loss_lin:.4f}\t{test_loss:.4f}\t{test_loss_lin:.4f}')
-
-        # Distance of parameter from initialization
-        dist_from_init = param_dist(self.params, self.init_params)
+            print(f'{self.epoch}\t{loss:.4f}\t{loss_extra:.4f}\t{test_loss:.4f}\t{test_loss_extra:.4f}')
 
         result = {
             'epoch': self.epoch,
             'train_loss': loss,
-            'train_loss_lin': loss_lin,
+            'train_loss_extra': loss_extra,
             'test_loss': test_loss,
-            'test_loss_lin': test_loss_lin,
-            'frob_distance': dist_from_init
+            'test_loss_extra': test_loss_extra
         }
-
-        # Get output on random test points
-        if random_test_features is not None:
-            random_test_output = self.model(self.params, random_test_features)
-            random_test_output = [float(random_test_output[i]) for i in range(random_test_features.shape[0])]
-            random_test_output_lin = self.model_lin(self.params_lin, random_test_features)
-            random_test_output_lin = [float(random_test_output_lin[i]) for i in range(random_test_features.shape[0])]
-
-            result['random_test_output'] = random_test_output
-            result['random_test_output_lin'] = random_test_output_lin
-
-        if self.epoch == 0:
-            result['param_norm'] = param_dist(self.params, 0)
 
         self.results.append(result)
 
@@ -146,10 +123,8 @@ class LinearizationExperiment:
         """Saves experiment results"""
         # Create experiment folder
         dtstamp = str(dt.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
-        experiment_name = "training_comparison_" + dtstamp
+        experiment_name = "kfac_extra_" + dtstamp
         os.makedirs(os.path.join(folder_path, experiment_name))
-
-        params_dict['max_epoch'] = self.epoch
 
         # Dump results and params
         with open(os.path.join(folder_path, experiment_name, 'results.pkl'), 'wb') as f:
@@ -163,10 +138,10 @@ class LinearizationExperiment:
         y_hats = self.model(self.params, x)
         loss = jnp.mean(jnp.square(y_hats - y))
 
-        y_hats_lin = self.model_lin(self.params_lin, x)
-        loss_lin = jnp.mean(jnp.square(y_hats_lin - y))
+        y_hats_extra = self.model(self.params_extra, x)
+        loss_extra = jnp.mean(jnp.square(y_hats_extra - y))
 
-        return float(loss), float(loss_lin)
+        return float(loss), float(loss_extra)
 
 def param_dist(params_1, params_2=0):
     """Computes the Frobenius distance between two parameter lists"""
@@ -203,17 +178,6 @@ def create_model(width, num_layers, in_dim, out_dim, key):
 
     return f, params
 
-def create_linearized_model(model, init_params):
-    """Creates linearized model"""
-    def f_lin(params, *args, **kwargs):
-        params_lin = tree_map(operator.sub, params, init_params)
-        f_params_x, proj = jax.jvp(lambda param: model(param, *args, **kwargs),
-                               (init_params,), (params_lin,))
-        return tree_map(operator.add, f_params_x, proj)
-    params_lin = params
-
-    return f_lin, params_lin
-
 def create_loss_fn(model, l2):
     """Creates l2 loss function for a given model"""
     def loss_fn(params, batch):
@@ -239,7 +203,7 @@ def create_optimizer(loss_fn, l2):
     )
 
 if __name__ == "__main__":
-    train_size, test_size = args.train_size, args.test_size
+    train_size, test_size, extra_size = args.train_size, args.test_size, args.extra_size
     dataset, in_dim = args.dataset, args.in_dim
     width, num_layers = args.width, args.num_layers
     lr, damping, l2 = args.lr, args.damping, args.l2
@@ -248,14 +212,17 @@ if __name__ == "__main__":
 
     # Generate data
     print("Generating data...")
-    dataset = generate_data(dataset, n=train_size + test_size, d=in_dim,
-        regime='autoregressive', ro=0.5, r1=1, sigma2=1)
-    train_data, test_data = data_random_split(dataset, (train_size, test_size))
+    dataset = generate_data(dataset, n=train_size + test_size + extra_size, d=in_dim,
+        regime=regime, ro=ro, r1=r1, sigma2=sigma2)
+    train_data, test_data, extra_data = data_random_split(dataset, (train_size, test_size, extra_size))
 
-    # Choose random test points to analyse
-    x_test, y_test = test_data
-    test_indices = np.random.randint(0, x_test.shape[0], size=num_test_points)
-    x_rand_test = np.array([x_test[i] for i in test_indices])
+    if args.extra_includes_train:
+        x_train, y_train = train_data
+        x_extra, y_extra = extra_data
+
+        x_extra = x_extra + x_train
+        y_extra = y_extra + y_train
+        extra_data = (x_extra, y_extra)
 
     # Create MLP
     key = jax.random.PRNGKey(42)
@@ -263,23 +230,22 @@ if __name__ == "__main__":
 
     # Set up experiment
     print("Setting up optimizers...")
-    experiment = LinearizationExperiment(model, params, lr=lr, damping=damping, l2=l2)
+    experiment = ExtraDataExperiment(model, params, lr=lr, damping=damping, l2=l2)
     key, sub_key = jax.random.split(key)
-    experiment.setup(train_data, sub_key)
+    experiment.setup(train_data, extra_data, sub_key)
 
     # Run experiment
     print("Starting training...")
-    experiment.log_result(train_data, test_data, x_rand_test)
+    experiment.log_result(train_data, test_data)
     while experiment.epoch < max_iter:
         key, sub_key = jax.random.split(key)
-        experiment.step(train_data, sub_key)
+        experiment.step(train_data, extra_data, sub_key)
 
         if experiment.epoch % save_every == 0:
-            experiment.log_result(train_data, test_data, x_rand_test)
+            experiment.log_result(train_data, test_data)
 
     # Save results
     if args.save_folder:
-        params_dict = vars(args)
         params_dict = vars(args)
         params_dict['regime'] = regime
         params_dict['ro'] = ro
