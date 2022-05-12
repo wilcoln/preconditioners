@@ -16,26 +16,28 @@ from jax.tree_util import tree_map
 from preconditioners.datasets import generate_data, data_random_split
 from preconditioners.optimizers.kfac import kfac_jax
 
-parser = argparse.ArgumentParser()
-# Model params
-parser.add_argument('--num_layers', help='Number of layers', type=int, default=3)
-parser.add_argument('--width', help='Hidden channels', type=int, default=128)
-# Optimizer params
-parser.add_argument('--lr', help='Learning rate', type=float, default=1e-1)
-parser.add_argument('--damping', help='Damping coefficient', type=float, default=1e-1)
-parser.add_argument('--l2', help='L2-regularization coefficient', type=float, default=0.)
-# Data params
-parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic'], default='quadratic')
-parser.add_argument('--train_size', help='Number of train examples', type=int, default=128)
-parser.add_argument('--test_size', help='Number of test examples', type=int, default=128)
-parser.add_argument('--in_dim', help='Dimension of features', type=int, default=8)
-parser.add_argument('--sigma2', help='Standard deviation of label noise', type=float, default=1)
-# Experiment params
-parser.add_argument('--max_iter', help='Max epochs', type=int, default=256)
-parser.add_argument('--save_every', help='Number of epochs per log', type=int, default=8)
-parser.add_argument('--save_folder', help='Experiments are saved here', type=str, default="experiments/")
-parser.add_argument('--num_test_points', help='Number of test points to analyse', type=int, default=32)
-args = parser.parse_args()
+def create_argparser():
+    parser = argparse.ArgumentParser()
+    # Model params
+    parser.add_argument('--num_layers', help='Number of layers', type=int, default=3)
+    parser.add_argument('--width', help='Hidden channels', type=int, default=128)
+    # Optimizer params
+    parser.add_argument('--lr', help='Learning rate', type=float, default=1e-1)
+    parser.add_argument('--damping', help='Damping coefficient', type=float, default=1e-1)
+    parser.add_argument('--l2', help='L2-regularization coefficient', type=float, default=0.)
+    # Data params
+    parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic'], default='quadratic')
+    parser.add_argument('--train_size', help='Number of train examples', type=int, default=128)
+    parser.add_argument('--test_size', help='Number of test examples', type=int, default=128)
+    parser.add_argument('--in_dim', help='Dimension of features', type=int, default=8)
+    parser.add_argument('--sigma2', help='Standard deviation of label noise', type=float, default=1)
+    # Experiment params
+    parser.add_argument('--max_iter', help='Max epochs', type=int, default=256)
+    parser.add_argument('--save_every', help='Number of epochs per log', type=int, default=8)
+    parser.add_argument('--save_folder', help='Experiments are saved here', type=str, default="experiments/")
+    parser.add_argument('--num_test_points', help='Number of test points to analyse', type=int, default=32)
+
+    return parser.parse_args()
 
 class LinearizationExperiment:
     """KFAC experiment for comparing MLP against its linearization"""
@@ -171,7 +173,7 @@ class LinearizationExperiment:
 def param_dist(params_1, params_2=0):
     """Computes the Frobenius distance between two parameter lists"""
     norm = 0
-    for i in range(len(params)):
+    for i in range(len(params_1)):
         p = params_1[i]
         for j in range(len(p)):
             v = p[j]
@@ -210,7 +212,7 @@ def create_linearized_model(model, init_params):
         f_params_x, proj = jax.jvp(lambda param: model(param, *args, **kwargs),
                                (init_params,), (params_lin,))
         return tree_map(operator.add, f_params_x, proj)
-    params_lin = params
+    params_lin = init_params
 
     return f_lin, params_lin
 
@@ -239,6 +241,7 @@ def create_optimizer(loss_fn, l2):
     )
 
 if __name__ == "__main__":
+    args = create_argparser()
     train_size, test_size = args.train_size, args.test_size
     dataset, in_dim = args.dataset, args.in_dim
     width, num_layers = args.width, args.num_layers
@@ -279,7 +282,6 @@ if __name__ == "__main__":
 
     # Save results
     if args.save_folder:
-        params_dict = vars(args)
         params_dict = vars(args)
         params_dict['regime'] = regime
         params_dict['ro'] = ro

@@ -146,7 +146,7 @@ class ExtraDataExperiment:
 def param_dist(params_1, params_2=0):
     """Computes the Frobenius distance between two parameter lists"""
     norm = 0
-    for i in range(len(params)):
+    for i in range(len(params_1)):
         p = params_1[i]
         for j in range(len(p)):
             v = p[j]
