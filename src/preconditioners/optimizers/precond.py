@@ -7,7 +7,7 @@ from preconditioners.utils import model_gradients_using_backprop
 class PrecondGD(PrecondBase):
     """Implements preconditioned gradient descent"""
 
-    def __init__(self, model, lr, labeled_data, unlabeled_data, damping=1.0, is_linear=False, verbose=True) -> None:
+    def __init__(self, model, lr, labeled_data, unlabeled_data, damping=0., is_linear=False, verbose=True) -> None:
         super(PrecondGD, self).__init__(model, lr, labeled_data, unlabeled_data, damping, verbose)
         self.last_p_inv = None
         self.is_linear = is_linear
