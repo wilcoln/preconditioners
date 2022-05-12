@@ -1,7 +1,7 @@
 import torch
 from torch.optim.optimizer import Optimizer
 
-from utils import model_gradients_using_backprop
+from preconditioners.utils import model_gradients_using_backprop
 
 
 class PrecondBase(Optimizer):

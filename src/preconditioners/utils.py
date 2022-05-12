@@ -10,10 +10,8 @@ from sklearn.model_selection import train_test_split
 from torch import nn
 import torch.nn.functional as F
 
-import settings
-from preconditioners.cov_approx.variance import var_solve
-
 import preconditioners.settings
+from preconditioners.cov_approx.variance import var_solve
 
 
 def sq_loss(y_pred, y):

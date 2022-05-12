@@ -16,8 +16,8 @@ import argparse
 from torch.utils.data import random_split
 import matplotlib.pyplot as plt
 
-from optimizers.kfac import Kfac, train as kfac_train, test as kfac_test
-from paths import plots_dir
+from preconditioners.optimizers.kfac import Kfac, train as kfac_train, test as kfac_test
+from preconditioners.paths import plots_dir
 from preconditioners import settings
 from preconditioners.datasets import CenteredLinearGaussianDataset, CenteredQuadraticGaussianDataset
 from preconditioners.datasets import generate_true_parameter, generate_c, generate_W_star
