@@ -110,10 +110,10 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=1
     plt.ylabel('Train Loss')
     plt.plot(np.arange(1, 1 + len(train_logs['losses'])), train_logs['losses'])
 
-    plt.savefig(os.path.join(folder_path, f'{name}.png'))
+    plt.savefig(os.path.join(folder_path, 'train_logs', f'{name}.pdf'))
     plt.close()
 
-    with open(os.path.join(folder_path, f'{name}_train_logs.pkl'), 'wb') as f:
+    with open(os.path.join(folder_path, 'train_logs', f'{name}_train_logs.pkl'), 'wb') as f:
         pickle.dump(train_logs, f)
 
     # Return loss

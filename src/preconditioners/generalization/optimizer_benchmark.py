@@ -34,6 +34,7 @@ parser.add_argument('--folder_path', help='Folder path', type=str)
 parser.add_argument('--width', help='Hidden channels', type=int)
 parser.add_argument('--damping', help='damping', type=float, default=1.0)
 parser.add_argument('--tol', help='tol', type=float, default=1e-3)
+parser.add_argument('--print_every', help='print_every', type=int, default=100)
 args = parser.parse_args()
 
 
@@ -126,10 +127,10 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
     plt.ylabel('Train Loss')
     plt.plot(np.arange(1, 1 + len(train_logs['losses'])), train_logs['losses'])
 
-    plt.savefig(os.path.join(folder_path, f'{name}.png'))
+    plt.savefig(os.path.join(folder_path, 'train_logs', f'{name}.pdf'))
     plt.close()
 
-    with open(os.path.join(folder_path, f'{name}_train_logs.pkl'), 'wb') as f:
+    with open(os.path.join(folder_path, 'train_logs', f'{name}_train_logs.pkl'), 'wb') as f:
         pickle.dump(train_logs, f)
 
     # Return loss
@@ -258,6 +259,7 @@ if __name__ == '__main__':
     folder_name = dtstamp + '_' + '_'.join([f'{k}={v}' for k, v in params_dict.items()])
     folder_path = os.path.join(plots_dir, 'optimizer_benchmark', folder_name)
     os.makedirs(folder_path)
+    os.makedirs(os.path.join(folder_path, 'train_logs'))
 
 
     test_errors = defaultdict(list)
@@ -268,20 +270,20 @@ if __name__ == '__main__':
             train_data, test_data, extra_data = generate_quadratic_data(sigma2=sigma2)
             print(f'Noise variance: {sigma2}')
             for optim_cls in optimizer_classes:
-                trainer_name = optim_cls.__name__ + f'_sigma2_{sigma2}' + f'_run_{run_id}'
+                name = optim_cls.__name__ + f'_sigma2_{sigma2}' + f'_run_{run_id}'
                 print(f'\n\nOptimizer: {optim_cls.__name__}')
                 if optim_cls.__name__ == 'Kfac':
                     mlp_output_sizes = ([width] * (num_layers - 1) if num_layers > 1 else []) + [1]
                     train_loss, hk_model, params = kfac_train(train_data, mlp_output_sizes, max_iter=max_iter,
-                                                              damping=args.damping, tol=tol, name=trainer_name,
-                                                              folder_path=folder_path)
+                                                              damping=args.damping, tol=tol, name=name,
+                                                              folder_path=folder_path, print_every=args.print_every)
                     test_loss = kfac_test(hk_model, params, test_data)
                 else:
                     # Instantiate the optimizer
                     optimizer = instantiate_optimizer(optim_cls, train_data, extra_data)
                     # Train the model
-                    train_loss = train(model, train_data, optimizer, loss_function, tol, max_iter, print_every=10,
-                                       name=trainer_name, folder_path=folder_path)
+                    train_loss = train(model, train_data, optimizer, loss_function, tol, max_iter,
+                                       print_every=args.print_every, name=name, folder_path=folder_path)
                     # Test the model
                     test_loss = test(model, test_data, loss_function)
                     test_loss = test_loss if (test_loss < threshold or not threshold) else float('nan')
