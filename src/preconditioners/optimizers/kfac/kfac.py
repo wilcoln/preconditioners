@@ -38,7 +38,7 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, lr, tol, print_eve
         value_func_has_aux=False,
         value_func_has_state=False,
         value_func_has_rng=False,
-        use_adaptive_learning_rate=False,
+        use_adaptive_learning_rate=True,
         use_adaptive_momentum=False,
         use_adaptive_damping=False,
         multi_device=False,
@@ -64,8 +64,8 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, lr, tol, print_eve
     while not condition:
         rng, key = jax.random.split(rng)
         previous_loss = current_loss
-        params, opt_state, stats = optimizer.step(params, opt_state, key, batch=input_dataset, momentum=0,
-                                                  damping=damping, learning_rate=lr)
+        params, opt_state, stats = optimizer.step(params, opt_state, key, batch=input_dataset,
+                                                  momentum=0, damping=damping)
 
         current_loss = float(stats['loss'])
 

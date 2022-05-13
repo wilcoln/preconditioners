@@ -349,7 +349,8 @@ def generate_centered_quadratic_gaussian_data(W_star, w_star, c, n=200, d=600, s
     xi = np.random.multivariate_normal(np.zeros(n), sigma2 * np.eye(n))
 
     # generate response
-    y = (X.dot(W_star)*X).sum(axis=1) + X.dot(w_star) + xi # equivalent to np.array([X[i].T.dot(W_star.dot(X[i])) for i in range(n)]) + X.dot(w_star) + xi
+    y = (X.dot(W_star)*X).sum(axis=1) + X.dot(w_star) + xi  # equivalent to np.array([X[i].T.dot(W_star.dot(X[i]))
+    # for i in range(n)]) + X.dot(w_star) + xi
 
     return X, y, xi
 

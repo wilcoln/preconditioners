@@ -27,7 +27,7 @@ from datetime import datetime as dt
 parser = argparse.ArgumentParser()
 parser.add_argument('--num_layers', help='Number of layers', default=1, type=int)
 parser.add_argument('--num_runs', help='Number of runs', default=1, type=int)
-parser.add_argument('--max_iter', help='Max epochs', default=100, type=int)
+parser.add_argument('--max_iter', help='Max epochs', default=float('inf'), type=int)
 parser.add_argument('--test_train_ratio', help='Test train ratio', default=1, type=int)
 parser.add_argument('--test_loss_threshold', help='Test loss threshold', type=float)
 parser.add_argument('--train_size', help='Train size', default=10, type=int)
@@ -201,7 +201,6 @@ extra_size = max(2*num_params - train_size, 10*train_size)
 test_size = args.test_train_ratio*train_size
 
 model = MLP(in_channels=d, num_layers=num_layers, hidden_channels=width).double().to(settings.DEVICE)
-
 # Fix variables
 noise_variances = np.linspace(1, 10, 20)
 optimizer_classes = [GradientDescent, PrecondGD, Kfac]
