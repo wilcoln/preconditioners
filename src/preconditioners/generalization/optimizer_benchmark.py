@@ -62,7 +62,7 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
         model.train()
 
         previous_loss = current_loss
-        # previous_model_state = model.state_dict()
+        previous_model_state = model.state_dict()
 
         # Get and prepare inputs
         inputs, targets = train_data[:]
@@ -102,13 +102,13 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
 
         # Update condition
         delta_loss = current_loss - previous_loss
-        no_improvement_counter += 1 if np.abs(delta_loss) < 1e-5 else 0
+        no_improvement_counter += 1 if np.abs(delta_loss) < 1e-6 else 0
         if no_improvement_counter > 5:  # stagnation
             condition = 'stagnation'
-        # elif delta_loss > 1e-3 or math.isnan(delta_loss):
-        #     condition = 'overshooting'
-        #     model.load_state_dict(previous_model_state)  # recover previous model
-        #     current_loss = previous_loss
+        elif delta_loss > 1e-3 or np.isnan(delta_loss):
+            condition = 'overshooting'
+            model.load_state_dict(previous_model_state)  # recover previous model
+            current_loss = previous_loss
         elif current_loss <= tol:
             condition = 'tol'
         elif epoch >= max_iter:
@@ -117,21 +117,21 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
     # Final print
     print('*** FINAL EPOCH ***')
     print(f'Epoch {epoch}: Train loss: {current_loss:.4f}, Stop condition: {condition}')
-
-    # Save train logs
-    train_logs['condition'] = condition
-    train_logs['losses'].append(current_loss)
-
-    plt.title(name + ' | ' + condition)
-    plt.xlabel('Epoch')
-    plt.ylabel('Train Loss')
-    plt.plot(np.arange(1, 1 + len(train_logs['losses'])), train_logs['losses'])
-
-    plt.savefig(os.path.join(folder_path, 'train_logs', f'{name}.pdf'))
-    plt.close()
-
-    with open(os.path.join(folder_path, 'train_logs', f'{name}_train_logs.pkl'), 'wb') as f:
-        pickle.dump(train_logs, f)
+    #
+    # # Save train logs
+    # train_logs['condition'] = condition
+    # train_logs['losses'].append(current_loss)
+    #
+    # plt.title(name + ' | ' + condition)
+    # plt.xlabel('Epoch')
+    # plt.ylabel('Train Loss')
+    # plt.plot(np.arange(1, 1 + len(train_logs['losses'])), train_logs['losses'])
+    #
+    # plt.savefig(os.path.join(folder_path, 'train_logs', f'{name}.pdf'))
+    # plt.close()
+    #
+    # with open(os.path.join(folder_path, 'train_logs', f'{name}_train_logs.pkl'), 'wb') as f:
+    #     pickle.dump(train_logs, f)
 
     # Return loss
     return current_loss
