@@ -92,7 +92,7 @@ def generate_centered_linear_gaussian_data(w_star, c, n=200, d=10, sigma2=1, fix
         warnings.warn('Warning, norms of datapoints are not sqrt(d)')
 
     # generate_noise
-    xi = np.random.normal(0, sigma2, size=n)
+    xi = np.random.normal(0, np.sqrt(sigma2), size=n)
 
     # generate response
     y = X.dot(w_star) + xi
@@ -113,7 +113,7 @@ def generate_centered_quadratic_gaussian_data(W_star, w_star, c, n=200, d=10, si
     X = np.random.multivariate_normal(mean=np.zeros(d), cov=c, size=n)
 
     # generate_noise
-    xi = np.random.normal(0, sigma2, size=n)
+    xi = np.random.normal(0, np.sqrt(sigma2), size=n)
 
     # generate response
     y = (X.dot(W_star)*X).sum(axis=1) + X.dot(w_star) + xi # equivalent to np.array([X[i].T.dot(W_star.dot(X[i])) for i in range(n)]) + X.dot(w_star) + xi
