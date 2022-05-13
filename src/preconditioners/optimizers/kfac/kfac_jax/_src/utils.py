@@ -852,7 +852,7 @@ def pytree_dataclass(class_type: Type[Any]) -> Type[Any]:
     a PyTree.
   """
     class_type = dataclasses.dataclass(class_type)
-    fields_names = tuple(field.trainer_name for field in dataclasses.fields(class_type))
+    fields_names = tuple(field.name for field in dataclasses.fields(class_type))
 
     def serialize_state(instance) -> Tuple[Tuple[Any, ...], Any]:
         return tuple(getattr(instance, name) for name in fields_names), None

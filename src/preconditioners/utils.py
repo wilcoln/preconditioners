@@ -11,7 +11,6 @@ from torch import nn
 import torch.nn.functional as F
 
 import preconditioners.settings
-from datasets import generate_c
 from preconditioners.cov_approx.variance import var_solve
 
 
@@ -233,9 +232,9 @@ def initialize_C(cov_empir, e_1=0.1, e_2=0.5, ro=0.2):
     d = cov_empir.shape[0]
     cov_inv = np.linalg.inv(cov_empir + e_1 * np.eye(d))
     C_init = scipy.linalg.cholesky(cov_inv) + e_2 * generate_c(ro=0.2,
-                                                               regime='autoregressive',
-                                                               d=d,
-                                                               )
+                                                                regime='autoregressive',
+                                                                d=d,
+                                                                )
     return C_init
 
 ###
@@ -355,23 +354,23 @@ def model_gradients_using_batched_backprop(model, x):
 ###
 
 class SLP(nn.Module):
-    """ Single Layer Perceptron for regression. """
+        """ Single Layer Perceptron for regression. """
 
-    def __init__(self, in_channels, activation=False):
-        super().__init__()
-        self.activation = activation
-        self.layer = nn.Linear(in_channels, 1, bias=False)
-        self.out_dim = 1
+        def __init__(self, in_channels, activation=False):
+            super().__init__()
+            self.activation = activation
+            self.layer = nn.Linear(in_channels, 1, bias=False)
+            self.out_dim = 1
 
-    def forward(self, x):
-        """ Forward pass of the MLP. """
-        x = self.layer(x)
-        if self.activation:
-            return F.relu(x)
-        return x
+        def forward(self, x):
+            """ Forward pass of the MLP. """
+            x = self.layer(x)
+            if self.activation:
+                return F.relu(x)
+            return x
 
-    def reset_parameters(self):
-        return self.layer.reset_parameters()
+        def reset_parameters(self):
+            return self.layer.reset_parameters()
 
 
 class MLP(nn.Module):

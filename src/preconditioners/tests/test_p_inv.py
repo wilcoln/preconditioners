@@ -5,9 +5,9 @@ from torch.utils.data import random_split
 
 from preconditioners import settings
 from preconditioners.cov_approx.impl_cov_approx import *
-from preconditioners.datasets import CenteredLinearGaussianDataset
-from preconditioners.optimizers import PrecondGD
-from preconditioners.utils import generate_c, SLP
+from preconditioners.datasets import CenteredLinearGaussianDataset, generate_c
+from preconditioners.optimizers import PrecondGD, PrecondGD3
+from preconditioners.utils import SLP
 
 
 class TestPinv(unittest.TestCase):
@@ -16,7 +16,6 @@ class TestPinv(unittest.TestCase):
         d = 30
         train_size = 10
         extra_size = 1000
-
         w_star = np.random.multivariate_normal(mean=np.zeros(d), cov=np.eye(d))
         self.c = generate_c(ro=.5, regime='autoregressive', d=d)
         self.dataset = CenteredLinearGaussianDataset(w_star=w_star, d=d, c=self.c, n=train_size + extra_size)
