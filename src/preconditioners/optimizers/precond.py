@@ -20,15 +20,24 @@ class PrecondGD(PrecondBase):
 
         # Compute the gradient of the output on the labeled and unlabeled data w.r.t the model parameters
         p = 0
-        for x in torch.unbind(labeled_data):
+        if isinstance(labeled_data, torch.Tensor):
+            labeled_data = torch.unbind(labeled_data)
+        if isinstance(unlabeled_data, torch.Tensor):
+            labeled_data = torch.unbind(unlabeled_data)
+
+        # TODO: deadline hack, fix this
+        size = 0
+        for x in labeled_data:
             grad = model_gradients_using_backprop(self.model, x).detach()
             p += grad @ grad.T
-        for x in torch.unbind(unlabeled_data):
+            size += 1
+        for x in unlabeled_data:
             grad = model_gradients_using_backprop(self.model, x).detach()
             p += grad @ grad.T
+            size += 1
 
         # Compute the inverse of the fisher information matrix
-        p *= 1 / (labeled_data.shape[0] + unlabeled_data.shape[0])
+        p *= 1 / size
 
         return p
 
@@ -44,7 +53,7 @@ class PrecondGD(PrecondBase):
         p = self._compute_fisher()
 
         # add damping to avoid division by zero
-        p += torch.eye(p.shape[0]) * group['damping'] / torch.norm(p)
+        p += torch.eye(p.shape[0]) * group['damping']
         p_inv = torch.cholesky_inverse(p)
 
         if self.is_linear:
