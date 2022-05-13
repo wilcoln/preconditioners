@@ -4,6 +4,9 @@ import pickle
 import haiku as hk
 import jax
 import jax.numpy as jnp
+import numpy as np
+from matplotlib import pyplot as plt
+
 from . import kfac_jax
 
 # Hyper parameters
@@ -101,6 +104,15 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=1
     # Save train logs
     train_logs['condition'] = condition
     train_logs['losses'].append(current_loss)
+
+    plt.title(name + ' | ' + condition)
+    plt.xlabel('Epoch')
+    plt.ylabel('Train Loss')
+    plt.plot(np.arange(1, 1 + len(train_logs['losses'])), train_logs['losses'])
+
+    plt.savefig(os.path.join(folder_path, f'{name}.png'))
+    plt.close()
+
     with open(os.path.join(folder_path, f'{name}_train_logs.pkl'), 'wb') as f:
         pickle.dump(train_logs, f)
 
