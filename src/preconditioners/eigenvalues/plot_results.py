@@ -24,7 +24,7 @@ all_evalues = []
 
 for entry in results:
     widths.append(entry['width'])
-    evalues = entry['eigenvalues']
+    evalues = [np.real(e) for e in entry['eigenvalues']]
     min_evalues.append(np.min(evalues))
     max_evalues.append(np.max(evalues))
     avg_evalues.append(np.average(evalues))
@@ -39,8 +39,19 @@ plt.ylabel(r'$\lambda$')
 plt.xlabel(r'$n$')
 plt.show()
 
+# Plot min eigenavlues
+plt.scatter(widths, min_evalues)
+plt.ylabel(r'$\lambda_{min}$')
+plt.xlabel(r'$n$')
+plt.yscale("log")
+plt.show()
+
+print(f"Maximum number of parameters: {len(all_evalues[-1])}")
+print(min_evalues)
+
 # Plot all eigenvalues
-plt.scatter(widths * len(all_evalues[0]), np.array(all_evalues).transpose().flatten())
+for i in range(len(widths)):
+    plt.scatter([float(widths[i])]*len(all_evalues[i]), all_evalues[i], c='#1f77b4')
 plt.ylabel(r'$\lambda$')
 plt.xlabel(r'$n$')
 plt.show()
