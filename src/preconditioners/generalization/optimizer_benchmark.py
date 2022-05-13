@@ -1,5 +1,4 @@
 """ Compare different optimizers and plot the results."""
-import math
 import os
 import json
 import pickle
@@ -17,7 +16,7 @@ from paths import plots_dir
 from preconditioners import settings
 from preconditioners.datasets import CenteredLinearGaussianDataset, CenteredQuadraticGaussianDataset
 from preconditioners.optimizers import GradientDescent, PrecondGD, PrecondGD2, PrecondGD3
-from preconditioners.utils import generate_true_parameter, generate_c, SLP, MLP, generate_W_star
+from preconditioners.utils import generate_true_parameter, generate_c, MLP, generate_W_star
 from datetime import datetime as dt
 
 
@@ -48,8 +47,9 @@ def instantiate_optimizer(optimizer_class, train_data, extra_data):
         return GradientDescent(model.parameters(), lr=lr)
 
 
-def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'), print_every=10):
+def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'), print_every=10, name=None, folder_path=None):
     """Train the model until loss is minimized."""
+    train_logs = {'condition': None, 'losses': []}
     model.train()
     current_loss = float('inf')
     epoch = 0
@@ -101,7 +101,7 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
 
         # Update condition
         delta_loss = current_loss - previous_loss
-        no_improvement_counter += 1 if np.abs(delta_loss) < 1e-4 else 0
+        no_improvement_counter += 1 if np.abs(delta_loss) < 1e-5 else 0
         if no_improvement_counter > 5:  # stagnation
             condition = 'stagnation'
         # elif delta_loss > 1e-3 or math.isnan(delta_loss):
@@ -116,6 +116,14 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
     # Final print
     print('*** FINAL EPOCH ***')
     print(f'Epoch {epoch}: Train loss: {current_loss:.4f}, Stop condition: {condition}')
+
+    # Save train logs
+    train_logs['condition'] = condition
+    train_logs['losses'].append(current_loss)
+    with open(os.path.join(folder_path, f'{name}_train_logs.pkl'), 'wb') as f:
+        pickle.dump(train_logs, f)
+
+    # Return loss
     return current_loss
 
 
@@ -187,7 +195,7 @@ def save_results(test_errors, folder_path):
 tol = args.tol  # Eduard comment: This needs to be a lot smaller later on
 lr = 1e-3
 d = 10
-num_layers = 3
+num_layers = 2
 loss_function = torch.nn.MSELoss()
 r2 = 1  # signal
 ro = 0.5
@@ -208,76 +216,80 @@ optimizer_classes = [GradientDescent, PrecondGD, Kfac]
 threshold = args.test_loss_threshold if args.test_loss_threshold else 0
 
 if __name__ == '__main__':
-    if args.folder_path:
-        folder_path = args.folder_path
-        test_errors = pickle.load(open(os.path.join(folder_path, 'test_errors.pkl'), 'rb'))
-        # replace values larger than threshold with nans
-        for optim_cls, test_losses in test_errors.items():
-            test_losses = np.array(test_losses)
-            test_losses[test_losses > threshold] = np.nan
-            test_errors[optim_cls] = test_losses.tolist()
-        save_results(test_errors, folder_path)
-    else:
-        test_errors = defaultdict(list)
-        for run_id in range(args.num_runs):
-            run_test_errors = defaultdict(list)
-            for sigma2 in noise_variances:
-                # Generate data
-                train_data, test_data, extra_data = generate_quadratic_data(sigma2=sigma2)
-                print(f'Noise variance: {sigma2}')
-                for optim_cls in optimizer_classes:
-                    print(f'\n\nOptimizer: {optim_cls.__name__}')
-                    if optim_cls.__name__ == 'Kfac':
-                        mlp_output_sizes = ([width] * (num_layers - 1) if num_layers > 1 else []) + [1]
-                        train_loss, hk_model, params = kfac_train(train_data, mlp_output_sizes, max_iter=max_iter,
-                                                                  damping=args.damping, tol=tol, lr=lr)
-                        test_loss = kfac_test(hk_model, params, test_data)
-                    else:
-                        # Instantiate the optimizer
-                        optimizer = instantiate_optimizer(optim_cls, train_data, extra_data)
-                        # Train the model
-                        train_loss = train(model, train_data, optimizer, loss_function, tol, max_iter, print_every=10)
-                        # Test the model
-                        test_loss = test(model, test_data, loss_function)
-                        test_loss = test_loss if (test_loss < threshold or not threshold) else float('nan')
-                        model.reset_parameters()
+    # if args.load_results and args.folder_path:
+    #     folder_path = args.folder_path
+    #     test_errors = pickle.load(open(os.path.join(folder_path, 'test_errors.pkl'), 'rb'))
+    #     # replace values larger than threshold with nans
+    #     for optim_cls, test_losses in test_errors.items():
+    #         test_losses = np.array(test_losses)
+    #         test_losses[test_losses > threshold] = np.nan
+    #         test_errors[optim_cls] = test_losses.tolist()
+    #     save_results(test_errors, folder_path)
+    # else:
+    # Create dictionary with all the parameters
+    params_dict = {
+        'tol': tol,
+        'lr': lr,
+        'extra_size': extra_size,
+        'd': d,
+        'num_params': num_params,
+        'train_size': train_size,
+        'test_size': test_size,
+        'loss_function': str(loss_function),
+        'num_runs': args.num_runs,
+        'num_layers': num_layers,
+        'max_iter': max_iter,
+        'test_train_ratio': args.test_train_ratio,
+        'r2': r2,
+        'ro': ro,
+    }
 
-                    run_test_errors[optim_cls.__name__].append(test_loss)
+    # Create folder name
+    dtstamp = str(dt.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
+    folder_name = dtstamp + '_' + '_'.join([f'{k}={v}' for k, v in params_dict.items()])
+    folder_path = os.path.join(plots_dir, 'optimizer_benchmark', folder_name)
+    os.makedirs(folder_path)
 
-            for optim_cls, test_losses in run_test_errors.items():
-                test_errors[optim_cls].append(test_losses)
 
-        # make dir, save plot and params
+    test_errors = defaultdict(list)
+    for run_id in range(args.num_runs):
+        run_test_errors = defaultdict(list)
+        for sigma2 in noise_variances:
+            # Generate data
+            train_data, test_data, extra_data = generate_quadratic_data(sigma2=sigma2)
+            print(f'Noise variance: {sigma2}')
+            for optim_cls in optimizer_classes:
+                trainer_name = optim_cls.__name__ + f'_sigma2_{sigma2}' + f'_run_{run_id}'
+                print(f'\n\nOptimizer: {optim_cls.__name__}')
+                if optim_cls.__name__ == 'Kfac':
+                    mlp_output_sizes = ([width] * (num_layers - 1) if num_layers > 1 else []) + [1]
+                    train_loss, hk_model, params = kfac_train(train_data, mlp_output_sizes, max_iter=max_iter,
+                                                              damping=args.damping, tol=tol, name=trainer_name,
+                                                              folder_path=folder_path)
+                    test_loss = kfac_test(hk_model, params, test_data)
+                else:
+                    # Instantiate the optimizer
+                    optimizer = instantiate_optimizer(optim_cls, train_data, extra_data)
+                    # Train the model
+                    train_loss = train(model, train_data, optimizer, loss_function, tol, max_iter, print_every=10,
+                                       name=trainer_name, folder_path=folder_path)
+                    # Test the model
+                    test_loss = test(model, test_data, loss_function)
+                    test_loss = test_loss if (test_loss < threshold or not threshold) else float('nan')
+                    model.reset_parameters()
 
-        # Create dictionary with all the parameters
-        params_dict = {
-            'tol': tol,
-            'lr': lr,
-            'extra_size': extra_size,
-            'd': d,
-            'num_params': num_params,
-            'train_size': train_size,
-            'test_size': test_size,
-            'loss_function': str(loss_function),
-            'num_runs': args.num_runs,
-            'num_layers': num_layers,
-            'max_iter': max_iter,
-            'test_train_ratio': args.test_train_ratio,
-            'r2': r2,
-            'ro': ro,
-        }
+                run_test_errors[optim_cls.__name__].append(test_loss)
 
-        # Create folder name
-        dtstamp = str(dt.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
-        folder_name = dtstamp + '_' + '_'.join([f'{k}={v}' for k, v in params_dict.items()])
-        folder_path = os.path.join(plots_dir, 'optimizer_benchmark', folder_name)
-        os.makedirs(folder_path)
+        for optim_cls, test_losses in run_test_errors.items():
+            test_errors[optim_cls].append(test_losses)
 
-        # Save params
-        with open(os.path.join(folder_path, 'params.json'), 'w') as f:
-            json.dump(params_dict, f)
+    # make dir, save plot and params
 
-        # Save Results
-        save_results(test_errors, folder_path)
+    # Save params
+    with open(os.path.join(folder_path, 'params.json'), 'w') as f:
+        json.dump(params_dict, f)
+
+    # Save Results
+    save_results(test_errors, folder_path)
 
 

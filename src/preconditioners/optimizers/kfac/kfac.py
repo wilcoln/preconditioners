@@ -1,3 +1,6 @@
+import os
+import pickle
+
 import haiku as hk
 import jax
 import jax.numpy as jnp
@@ -7,7 +10,9 @@ from . import kfac_jax
 L2_REG = 0
 
 
-def train(input_dataset, mlp_output_sizes, max_iter, damping, lr, tol, print_every=10):
+def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=10, name=None, folder_path=None):
+    train_logs = {'condition': None, 'losses': []}
+
     def model_fn(x):
         """A Haiku MLP model function - three hidden layer network with tanh."""
         return hk.nets.MLP(
@@ -77,7 +82,7 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, lr, tol, print_eve
 
         # Update condition
         delta_loss = current_loss - previous_loss
-        no_improvement_counter += 1 if jnp.abs(delta_loss) < 1e-4 else 0
+        no_improvement_counter += 1 if jnp.abs(delta_loss) < 1e-10 else 0
         if no_improvement_counter > 5:  # stagnation
             condition = 'stagnation'
         elif current_loss <= tol:
@@ -88,6 +93,19 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, lr, tol, print_eve
     # Final print
     print('*** FINAL EPOCH ***')
     print(f'Epoch {epoch}: Train loss: {current_loss:.4f}, Stop condition: {condition}')
+
+    # Final print
+    print('*** FINAL EPOCH ***')
+    print(f'Epoch {epoch}: Train loss: {current_loss:.4f}, Stop condition: {condition}')
+
+    # Save train logs
+    train_logs['condition'] = condition
+    train_logs['losses'].append(current_loss)
+    with open(os.path.join(folder_path, f'{name}_train_logs.pkl'), 'wb') as f:
+        pickle.dump(train_logs, f)
+
+    # Return loss
+
     return current_loss, hk_model, params
 
 

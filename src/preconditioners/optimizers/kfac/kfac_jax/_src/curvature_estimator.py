@@ -790,13 +790,13 @@ class BlockDiagonalCurvature(CurvatureEstimator):
             # Correctly get the block class
             if idx in self._index_to_block_ctor:
                 cls = self._index_to_block_ctor[idx]
-            elif tag_eqn.primitive.name in self._layer_tag_to_block_ctor:
-                cls = self._layer_tag_to_block_ctor[tag_eqn.primitive.name]
-            elif tag_eqn.primitive.name in _DEFAULT_TAG_TO_BLOCK_CTOR:
-                cls = _DEFAULT_TAG_TO_BLOCK_CTOR[tag_eqn.primitive.name]
+            elif tag_eqn.primitive.trainer_name in self._layer_tag_to_block_ctor:
+                cls = self._layer_tag_to_block_ctor[tag_eqn.primitive.trainer_name]
+            elif tag_eqn.primitive.trainer_name in _DEFAULT_TAG_TO_BLOCK_CTOR:
+                cls = _DEFAULT_TAG_TO_BLOCK_CTOR[tag_eqn.primitive.trainer_name]
             else:
                 raise ValueError(f"Did not find anywhere a block class for tag "
-                                 f"{tag_eqn.primitive.name}.")
+                                 f"{tag_eqn.primitive.trainer_name}.")
             if "name" in tag_eqn.params:
                 block_name = tag_eqn.params["name"]
                 assert block_name not in counters
