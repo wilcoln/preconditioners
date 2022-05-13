@@ -7,9 +7,7 @@ from . import kfac_jax
 L2_REG = 0
 
 
-def train(input_dataset, mlp_output_sizes, max_iter, initial_damping):
-    NUM_EPOCHS = max_iter
-
+def train(input_dataset, mlp_output_sizes, max_iter, damping, lr, tol, print_every=10):
     def model_fn(x):
         """A Haiku MLP model function - three hidden layer network with tanh."""
         return hk.nets.MLP(
@@ -40,10 +38,9 @@ def train(input_dataset, mlp_output_sizes, max_iter, initial_damping):
         value_func_has_aux=False,
         value_func_has_state=False,
         value_func_has_rng=False,
-        use_adaptive_learning_rate=True,
-        use_adaptive_momentum=True,
-        use_adaptive_damping=True,
-        initial_damping=initial_damping,
+        use_adaptive_learning_rate=False,
+        use_adaptive_momentum=False,
+        use_adaptive_damping=False,
         multi_device=False,
     )
 
@@ -58,11 +55,40 @@ def train(input_dataset, mlp_output_sizes, max_iter, initial_damping):
     rng, key = jax.random.split(rng)
     opt_state = optimizer.init(params, key, (dummy_xs, dummy_ys))
 
-    # Training loop
-    for epoch in range(1, 1 + NUM_EPOCHS):
+    current_loss = float('inf')
+    epoch = 0
+    # stop if 5 consecutive epochs have no improvement
+    no_improvement_counter = 0
+    condition = None
+
+    while not condition:
         rng, key = jax.random.split(rng)
-        params, opt_state, stats = optimizer.step(params, opt_state, key, batch=input_dataset)
-    return float(stats['loss']), hk_model, params
+        previous_loss = current_loss
+        params, opt_state, stats = optimizer.step(params, opt_state, key, batch=input_dataset, momentum=0,
+                                                  damping=damping, learning_rate=lr)
+
+        current_loss = float(stats['loss'])
+
+        epoch += 1
+
+        # Print statistics
+        if epoch == 1 or epoch % print_every == 0:
+            print(f'Epoch {epoch}: Train loss: {current_loss:.4f}')
+
+        # Update condition
+        delta_loss = current_loss - previous_loss
+        no_improvement_counter += 1 if jnp.abs(delta_loss) < 1e-4 else 0
+        if no_improvement_counter > 5:  # stagnation
+            condition = 'stagnation'
+        elif current_loss <= tol:
+            condition = 'tol'
+        elif epoch >= max_iter:
+            condition = 'max_iter'
+
+    # Final print
+    print('*** FINAL EPOCH ***')
+    print(f'Epoch {epoch}: Train loss: {current_loss:.4f}, Stop condition: {condition}')
+    return current_loss, hk_model, params
 
 
 def test(model, model_params, input_dataset):

@@ -27,5 +27,5 @@ class PrecondGD(PrecondBase):
 
         # Compute the inverse of the fisher information matrix
         # add damping to avoid division by zero
-        p += torch.eye(p.shape[0]) * group['damping'] / torch.norm(p)
+        p += torch.eye(p.shape[0]) * group['damping']
         return torch.cholesky_inverse(p)

@@ -34,6 +34,7 @@ parser.add_argument('--train_size', help='Train size', default=10, type=int)
 parser.add_argument('--folder_path', help='Folder path', type=str)
 parser.add_argument('--width', help='Hidden channels', type=int)
 parser.add_argument('--damping', help='damping', type=float, default=1.0)
+parser.add_argument('--tol', help='tol', type=float, default=1e-3)
 args = parser.parse_args()
 
 
@@ -60,7 +61,7 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
         model.train()
 
         previous_loss = current_loss
-        previous_model_state = model.state_dict()
+        # previous_model_state = model.state_dict()
 
         # Get and prepare inputs
         inputs, targets = train_data[:]
@@ -84,7 +85,7 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
         #nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
 
         #Gradient Value Clipping
-        torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=1.0)
+        # torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=1.0)
 
         # Perform optimization
         optimizer.step()
@@ -103,10 +104,10 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
         no_improvement_counter += 1 if np.abs(delta_loss) < 1e-4 else 0
         if no_improvement_counter > 5:  # stagnation
             condition = 'stagnation'
-        elif delta_loss > 1e-3 or math.isnan(delta_loss):
-            condition = 'overshooting'
-            model.load_state_dict(previous_model_state)  # recover previous model
-            current_loss = previous_loss
+        # elif delta_loss > 1e-3 or math.isnan(delta_loss):
+        #     condition = 'overshooting'
+        #     model.load_state_dict(previous_model_state)  # recover previous model
+        #     current_loss = previous_loss
         elif current_loss <= tol:
             condition = 'tol'
         elif epoch >= max_iter:
@@ -183,45 +184,23 @@ def save_results(test_errors, folder_path):
     plt.show()
 
 # Fix parameters
-tol = 1e-3  # Eduard comment: This needs to be a lot smaller later on
+tol = args.tol  # Eduard comment: This needs to be a lot smaller later on
 lr = 1e-3
 d = 10
+num_layers = 3
 loss_function = torch.nn.MSELoss()
-# Eduard comment: We are interested in cases where num_params > train_size (not just d > train_size)
-# it is interesting that you found better generalization of NGD even if num_params <  train_size
-if args.width:  # 3-MLP
-    num_layers = 3
-    width = args.width
-    train_size = args.train_size
-    num_params = (1 + d) * width + width**2
-    extra_size = max(2*num_params - train_size, 10*train_size)
-    test_size = args.test_train_ratio*train_size
-else:
-    num_layers = args.num_layers
-    extra_size = 1000
-    num_params = int(.1 * extra_size)
-    train_size = int(.5 * num_params)
-    test_size = int(.5 * train_size)
-
-    if num_layers == 1:
-        d = num_params
-        model = SLP(in_channels=num_params).double().to(settings.DEVICE)
-        width = 0
-    else:
-        if num_layers == 2:
-            width = num_params // (1 + d)
-        else:
-            hidden_layers = num_layers - 2
-            # Eduard comment: please add a comment here about how you are computing the hidden layer size.
-            # Is it same width for every hidden layer?
-            width = int((-(1 + d) + math.sqrt((1 + d) ** 2 + 4 * hidden_layers * num_params)) / (2 * hidden_layers))
-
-
-model = MLP(in_channels=d, num_layers=num_layers, hidden_channels=width).double().to(settings.DEVICE)
-
-max_iter = args.max_iter  # float('inf')
 r2 = 1  # signal
 ro = 0.5
+# Eduard comment: We are interested in cases where num_params > train_size (not just d > train_size)
+# it is interesting that you found better generalization of NGD even if num_params <  train_size
+width = args.width
+max_iter = args.max_iter  # float('inf')
+train_size = args.train_size
+num_params = (1 + d) * width + width**2
+extra_size = max(2*num_params - train_size, 10*train_size)
+test_size = args.test_train_ratio*train_size
+
+model = MLP(in_channels=d, num_layers=num_layers, hidden_channels=width).double().to(settings.DEVICE)
 
 # Fix variables
 noise_variances = np.linspace(1, 10, 20)
@@ -251,7 +230,8 @@ if __name__ == '__main__':
                     print(f'\n\nOptimizer: {optim_cls.__name__}')
                     if optim_cls.__name__ == 'Kfac':
                         mlp_output_sizes = ([width] * (num_layers - 1) if num_layers > 1 else []) + [1]
-                        train_loss, hk_model, params = kfac_train(train_data, mlp_output_sizes, max_iter, args.damping)
+                        train_loss, hk_model, params = kfac_train(train_data, mlp_output_sizes, max_iter=max_iter,
+                                                                  damping=args.damping, tol=tol, lr=lr)
                         test_loss = kfac_test(hk_model, params, test_data)
                     else:
                         # Instantiate the optimizer
@@ -294,12 +274,11 @@ if __name__ == '__main__':
         folder_path = os.path.join(plots_dir, 'optimizer_benchmark', folder_name)
         os.makedirs(folder_path)
 
-
         # Save params
         with open(os.path.join(folder_path, 'params.json'), 'w') as f:
             json.dump(params_dict, f)
 
-        # Save Results(
+        # Save Results
         save_results(test_errors, folder_path)
 
 

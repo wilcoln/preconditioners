@@ -21,13 +21,13 @@ class PrecondBase(Optimizer):
 
     def _prepare_model(self):
         count = 0
-        print(self.model)
-        print("=> We keep the following layers in PrecondGD. ")
+        # print(self.model)
+        # print("=> We keep the following layers in PrecondGD. ")
         for module in self.model.modules():
             classname = module.__class__.__name__
             if classname in self.known_modules:
                 self.modules.append(module)
-                print('(%s): %s' % (count, module))
+                # print('(%s): %s' % (count, module))
                 count += 1
 
     @staticmethod

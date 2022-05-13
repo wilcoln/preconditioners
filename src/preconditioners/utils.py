@@ -463,13 +463,16 @@ class MLP(nn.Module):
 
     def __init__(self, in_channels, num_layers=2, hidden_channels=100):
         super().__init__()
-        self.in_layer = nn.Linear(in_channels, hidden_channels, bias=False)
+        self.in_layer = nn.Linear(in_channels, hidden_channels)
+        self.hidden_channels = hidden_channels
         self.hidden_layers = nn.ModuleList([
             nn.Linear(hidden_channels, hidden_channels)
             for _ in range(num_layers - 2)
         ])
         self.output_layer = nn.Linear(hidden_channels, 1, bias=False)
         self.out_dim = 1
+
+        self.init_params(sigma_w=1, sigma_b=1)
 
     def forward(self, x):
         """ Forward pass of the MLP. """
@@ -486,6 +489,14 @@ class MLP(nn.Module):
         for layer in self.hidden_layers:
             layer.reset_parameters()
         self.output_layer.reset_parameters()
+
+    def init_params(self, sigma_w, sigma_b):
+        tmp = sigma_w / np.sqrt(self.hidden_channels)
+        self.in_layer.weight.data.normal_(0, tmp)
+        for layer in self.hidden_layers:
+            layer.weight.data.normal_(0, tmp)
+            layer.bias.data.normal_(0, sigma_b)
+        self.output_layer.weight.data.normal_(0, tmp)
 
 
 def train(model, train_dataset, optimizer, loss_function, n_epochs, print_every=1):
