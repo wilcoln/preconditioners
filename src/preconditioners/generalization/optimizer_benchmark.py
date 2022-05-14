@@ -286,15 +286,16 @@ if __name__ == '__main__':
     warnings.filterwarnings("ignore")
 
     # Run experiments
-    for run_id in range(args.num_runs):
+    for num_run in range(1, 1 + args.num_runs):
+        print(f'\n\nRun N°: {num_run}')
         run_test_errors = defaultdict(list)
         for sigma2 in noise_variances:
             # Generate quadratic data
             train_data, test_data, extra_data = generate_quad_data(W_star=W_star, w_star=w_star, c=c, sigma2=sigma2)
-            print(f'Noise variance: {sigma2}')
+            print(f'\n\nNoise variance: {sigma2}')
             for optim_cls in optimizer_classes:
                 # For each optimizer
-                model_name = optim_cls.__name__ + f'_sigma2={sigma2}' + f'_run={1 + run_id}'
+                model_name = optim_cls.__name__ + f'_sigma2={sigma2}' + f'_run={num_run}'
                 print(f'\n\nOptimizer: {optim_cls.__name__}')
                 if optim_cls.__name__ == 'Kfac':  # KFAC calls jax model and optimizer
                     # Train
