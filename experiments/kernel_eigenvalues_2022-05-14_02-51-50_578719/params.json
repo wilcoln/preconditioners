@@ -1,0 +1,1 @@
+{"num_layers": 3, "width_min": 4, "width_max": 64, "width_step": 4, "damping": 0.001, "dataset": "quadratic", "train_size": 1024, "extra_size": 8192, "in_dim": 8, "ro": 0.5, "r2": 1, "regime": "autoregressive", "sigma2": 1, "save_folder": "experiments/"}
