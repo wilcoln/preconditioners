@@ -70,7 +70,6 @@ noise_variances = np.linspace(1, 10, 20)
 optimizer_classes = [Kfac, GradientDescent, PrecondGD]
 
 # Derived
-num_params = (1 + args.d) * args.width + (args.width ** 2) * (args.num_layers - 2)
 extra_size = args.extra_train_ratio * args.train_size
 test_size = args.test_train_ratio * args.train_size
 model = MLP(in_channels=args.d, num_layers=args.num_layers, hidden_channels=args.width).double().to(settings.DEVICE)
