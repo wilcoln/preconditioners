@@ -486,10 +486,7 @@ class MLP(nn.Module):
         return x
 
     def reset_parameters(self):
-        self.in_layer.reset_parameters()
-        for layer in self.hidden_layers:
-            layer.reset_parameters()
-        self.output_layer.reset_parameters()
+        self.init_params(sigma_w=1, sigma_b=1)
 
     def init_params(self, sigma_w, sigma_b):
         tmp = sigma_w / np.sqrt(self.hidden_channels)

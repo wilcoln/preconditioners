@@ -173,20 +173,7 @@ def generate_quadratic_data(W_star, w_star, c, sigma2):
     return train_data, test_data, extra_data
 
 
-def save_results(test_errors, folder_path, train_logs, name):
-    mean_test_errors = defaultdict(list)
-    for optim_cls, test_losses in test_errors.items():
-        test_losses = np.array(test_losses)
-        test_losses = test_losses.reshape(test_losses.shape[0], test_losses.shape[1])
-        mean_test_errors[optim_cls] = np.nanmean(test_losses, axis=0).tolist()
-
-    # Save test_errors
-    with open(os.path.join(folder_path, 'test_errors.pkl'), 'wb') as f:
-        pickle.dump(test_errors, f)
-        # Save mean_test_errors
-    with open(os.path.join(folder_path, 'mean_test_errors.pkl'), 'wb') as f:
-        pickle.dump(mean_test_errors, f)
-        # Save figure
+def save_train_logs(train_logs, folder_path, name):
 
     # Save train logs
     plt.title(name + ' | ' + train_logs['condition'])
@@ -200,21 +187,35 @@ def save_results(test_errors, folder_path, train_logs, name):
     with open(os.path.join(folder_path, 'train_logs', f'{name}_train_logs.pkl'), 'wb') as f:
         pickle.dump(train_logs, f)
 
-    # Plot the results
-    try:
-        for optim_cls in optimizer_classes:
-            plt.scatter(noise_variances, mean_test_errors[optim_cls.__name__], label=optim_cls.__name__)
 
-            plt.xlabel('Noise variance')
-            plt.ylabel('Test loss')
-            plt.legend([optim_cls.__name__ for optim_cls in optimizer_classes])
+def save_results(test_errors, folder_path):
+    mean_test_errors = defaultdict(list)
+    for optim_cls, test_losses in test_errors.items():
+        test_losses = np.array(test_losses)
+        test_losses = test_losses.reshape(test_losses.shape[0], test_losses.shape[1])
+        mean_test_errors[optim_cls] = np.nanmean(test_losses, axis=0).tolist()
 
-        plt.savefig(os.path.join(folder_path, 'plot.pdf'), format='pdf')
-        plt.show()
-    except:
-        pass
+        # Plot the results
+    for optim_cls in optimizer_classes:
+        plt.scatter(noise_variances, mean_test_errors[optim_cls.__name__], label=optim_cls.__name__)
+
+        plt.xlabel('Noise variance')
+        plt.ylabel('Test loss')
+        plt.legend([optim_cls.__name__ for optim_cls in optimizer_classes])
+    # Save test_errors
+    with open(os.path.join(folder_path, 'test_errors.pkl'), 'wb') as f:
+        pickle.dump(test_errors, f)
+        # Save mean_test_errors
+    with open(os.path.join(folder_path, 'mean_test_errors.pkl'), 'wb') as f:
+        pickle.dump(mean_test_errors, f)
+        # Save figure
+    plt.savefig(os.path.join(folder_path, 'plot.pdf'), format='pdf')
+
     # Print path to results
     print(f'Results saved to {folder_path}')
+
+    plt.show()
+
 
 # Fix parameters
 lr = 1e-3
@@ -233,7 +234,7 @@ test_size = args.test_train_ratio*train_size
 model = MLP(in_channels=d, num_layers=num_layers, hidden_channels=args.width).double().to(settings.DEVICE)
 # Fix variables
 noise_variances = np.linspace(1, 10, 20)
-optimizer_classes = [GradientDescent] # [GradientDescent, PrecondGD, Kfac]
+optimizer_classes = [Kfac, GradientDescent]  # [PrecondGD]
 
 threshold = args.test_loss_threshold if args.test_loss_threshold else 0
 
@@ -280,7 +281,6 @@ if __name__ == '__main__':
 
     test_errors = defaultdict(list)
     W_star, w_star, c = generate_quadratic_params()
-
     for run_id in range(args.num_runs):
         run_test_errors = defaultdict(list)
         for sigma2 in noise_variances:
@@ -296,7 +296,7 @@ if __name__ == '__main__':
                     train_loss, hk_model, params, train_logs = kfac_train(train_data, mlp_output_sizes,
                                                                           max_iter=args.max_iter, damping=args.damping,
                                                                           tol=args.tol, print_every=args.print_every,
-                                                                          lr=1e-2*lr)
+                                                                          lr=lr)
                     test_loss = kfac_test(hk_model, params, test_data)
                 else:
                     # Instantiate the optimizer
@@ -306,16 +306,19 @@ if __name__ == '__main__':
                                                    print_every=args.print_every)
                     # Test the model
                     test_loss = test(model, test_data, loss_function)
-                    test_loss = test_loss if (test_loss < threshold or not threshold) else float('nan')
                     model.reset_parameters()
 
+                test_loss = float('nan') if (threshold and test_loss > threshold) else test_loss
+
+                train_logs['test_loss'] = test_loss
+                save_train_logs(train_logs, folder_path, name)
                 run_test_errors[optim_cls.__name__].append(test_loss)
 
-                for optim_cls, test_losses in run_test_errors.items():
-                    test_errors[optim_cls].append(test_losses)
+        for optim_cls, test_losses in run_test_errors.items():
+            test_errors[optim_cls].append(test_losses)
 
-                # Save Results
-                save_results(test_errors, folder_path, train_logs, name)
+    # Save Results
+    save_results(test_errors, folder_path)
 
 
 

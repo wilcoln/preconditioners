@@ -14,11 +14,14 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, lr, print_eve
 
     def model_fn(x):
         """A Haiku MLP model function - three hidden layer network with tanh."""
+        width = mlp_output_sizes[0]
         return hk.nets.MLP(
             output_sizes=mlp_output_sizes,
-            with_bias=False,
+            with_bias=True,
             activation=jax.nn.tanh,
             activate_final=False,
+            w_init=hk.initializers.RandomNormal(stddev=1/jnp.sqrt(width)),
+            b_init=hk.initializers.RandomNormal(stddev=1),
         )(x)
 
     # The Haiku transformed model
@@ -27,7 +30,7 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, lr, print_eve
     def loss_fn(model_params, model_batch):
         """The loss function to optimize."""
         x, y = model_batch
-        y_hats = hk_model.apply(model_params, x)
+        y_hats = hk_model.apply(model_params, x).squeeze()
         kfac_jax.register_squared_error_loss(y_hats, y)
         loss = jnp.mean(jnp.square(y_hats - y))
 
@@ -82,7 +85,7 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, lr, print_eve
 
         # Update condition
         delta_loss = current_loss - previous_loss
-        no_improvement_counter += 1 if jnp.abs(delta_loss) < 1e-8 else 0
+        no_improvement_counter += 1 if jnp.abs(delta_loss) < 1e-6 else 0
         if no_improvement_counter > 5:  # stagnation
             condition = 'stagnation'
         elif current_loss <= tol:
