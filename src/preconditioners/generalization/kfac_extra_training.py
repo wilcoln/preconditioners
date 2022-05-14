@@ -94,14 +94,9 @@ class ExtraDataExperiment:
 
         key, sub_key = jax.random.split(key)
         delta = self._compute_extra_update(train_data, extra_data, lr, key)
+        if lr is None:
+            delta = kfac_jax.utils.scalar_mul(delta, self.lr)
         self.params_extra = jax.tree_map(jnp.add, self.params_extra, delta)
-
-        # grad = self.grad_loss(self.params_extra, train_data)
-        # grad_update = self.optimizer_extra._estimator.multiply_inverse(
-        #     self.opt_state_extra.estimator_state, grad, self.damping,
-        #     exact_power=False, use_cached=True)
-        # grad_update = kfac_jax.utils.scalar_mul(grad_update, self.lr)
-        # self.params_extra = jax.tree_map(jnp.subtract, self.params_extra, grad_update)
 
         self.epoch += 1
 
