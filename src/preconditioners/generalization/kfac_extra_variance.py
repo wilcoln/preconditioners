@@ -92,6 +92,7 @@ if __name__ == "__main__":
 
     # For each variance value, run the KFAC training comparison experiment
     for variance in np.arange(min_var, max_var + step_var, step_var):
+        variance = variance.astype(float)
         # Add noise to labels
         xi = np.random.normal(0, np.sqrt(variance), size=train_size + test_size)
         y = y_noiseless + xi
