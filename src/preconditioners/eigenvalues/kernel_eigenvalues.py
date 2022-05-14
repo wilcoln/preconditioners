@@ -93,7 +93,7 @@ class CheckEigenvalues:
             F_inv = self.optimizer._compute_p_inv()
             # Compute kernel
             grad = self.optimizer._compute_grad_of_data(self.labeled_data)
-            m = grad @ F_inv @ grad.T / width
+            m = grad @ F_inv @ grad.T
 
             #Compute eigenavalues
             eigenvalues = np.linalg.eigvals(m)
