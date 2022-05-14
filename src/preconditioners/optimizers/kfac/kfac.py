@@ -1,11 +1,7 @@
-import os
-import pickle
 
 import haiku as hk
 import jax
 import jax.numpy as jnp
-import numpy as np
-from matplotlib import pyplot as plt
 
 from . import kfac_jax
 
@@ -13,7 +9,7 @@ from . import kfac_jax
 L2_REG = 0
 
 
-def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=10, name=None, folder_path=None):
+def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, lr, print_every=10):
     train_logs = {'condition': None, 'losses': []}
 
     def model_fn(x):
@@ -46,10 +42,10 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=1
         value_func_has_aux=False,
         value_func_has_state=False,
         value_func_has_rng=False,
-        use_adaptive_learning_rate=True,
+        use_adaptive_learning_rate=False,
         use_adaptive_momentum=False,
-        use_adaptive_damping=True,
-        initial_damping=damping,
+        use_adaptive_damping=False,
+        # initial_damping=damping,
         multi_device=False,
     )
 
@@ -73,7 +69,8 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=1
     while not condition:
         rng, key = jax.random.split(rng)
         previous_loss = current_loss
-        params, opt_state, stats = optimizer.step(params, opt_state, key, batch=input_dataset, momentum=0.0)
+        params, opt_state, stats = optimizer.step(params, opt_state, key, batch=input_dataset, momentum=0.0,
+                                                  damping=damping, learning_rate=lr)
 
         current_loss = float(stats['loss'])
 

@@ -48,7 +48,7 @@ def instantiate_optimizer(optimizer_class, train_data, extra_data):
         return GradientDescent(model.parameters(), lr=lr)
 
 
-def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'), print_every=10, name=None, folder_path=None):
+def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'), print_every=10):
     """Train the model until loss is minimized."""
     train_logs = {'condition': None, 'losses': []}
     model.train()
@@ -139,21 +139,31 @@ def test(model, test_data, loss_function):
     return loss.item()
 
 
-def generate_linear_data(sigma2):
-    global d, r2, ro, train_size, test_size, extra_size
+def generate_linear_params():
+    global d, r2, ro
     w_star = generate_true_parameter(d, r2, m=np.eye(d))
     c = generate_c(ro, regime='autoregressive', d=d)
+    return w_star, c
+
+
+def generate_linear_data(w_star, c, sigma2):
+    global d, train_size, test_size, extra_size
     dataset = CenteredLinearGaussianDataset(w_star=w_star, d=d, c=c, n=train_size + test_size + extra_size, sigma2=sigma2)
     train_data, test_data, extra_data = random_split(dataset, [train_size, test_size, extra_size])
 
     return train_data, test_data, extra_data
 
 
-def generate_quadratic_data(sigma2):
-    global d, r2, ro, train_size, test_size, extra_size
+def generate_quadratic_params():
+    global d, r2, ro
     w_star = generate_true_parameter(d, r2, m=np.eye(d))
     W_star = generate_W_star(d, r2)
     c = generate_c(ro, regime='autoregressive', d=d)
+    return W_star, w_star, c
+
+
+def generate_quadratic_data(W_star, w_star, c, sigma2):
+    global d, train_size, test_size, extra_size
     dataset = CenteredQuadraticGaussianDataset(
         W_star=W_star, w_star=w_star, d=d, c=c,
         n=train_size + test_size + extra_size, sigma2=sigma2)
@@ -207,7 +217,6 @@ def save_results(test_errors, folder_path, train_logs, name):
     print(f'Results saved to {folder_path}')
 
 # Fix parameters
-tol = args.tol  # Eduard comment: This needs to be a lot smaller later on
 lr = 1e-3
 d = 10
 num_layers = 3
@@ -216,17 +225,15 @@ r2 = 1  # signal
 ro = 0.5
 # Eduard comment: We are interested in cases where num_params > train_size (not just d > train_size)
 # it is interesting that you found better generalization of NGD even if num_params <  train_size
-width = args.width
-max_iter = args.max_iter  # float('inf')
 train_size = args.train_size
-num_params = (1 + d) * width + width**2
+num_params = (1 + d) * args.width + args.width**2
 extra_size = max(2*num_params - train_size, 10*train_size)
 test_size = args.test_train_ratio*train_size
 
-model = MLP(in_channels=d, num_layers=num_layers, hidden_channels=width).double().to(settings.DEVICE)
+model = MLP(in_channels=d, num_layers=num_layers, hidden_channels=args.width).double().to(settings.DEVICE)
 # Fix variables
 noise_variances = np.linspace(1, 10, 20)
-optimizer_classes = [GradientDescent, Kfac]
+optimizer_classes = [GradientDescent] # [GradientDescent, PrecondGD, Kfac]
 
 threshold = args.test_loss_threshold if args.test_loss_threshold else 0
 
@@ -243,7 +250,7 @@ if __name__ == '__main__':
     # else:
     # Create dictionary with all the parameters
     params_dict = {
-        'tol': tol,
+        'tol': args.tol,
         'lr': lr,
         'extra_size': extra_size,
         'd': d,
@@ -253,7 +260,7 @@ if __name__ == '__main__':
         'loss_function': str(loss_function),
         'num_runs': args.num_runs,
         'num_layers': num_layers,
-        'max_iter': max_iter,
+        'max_iter': args.max_iter,
         'test_train_ratio': args.test_train_ratio,
         'r2': r2,
         'ro': ro,
@@ -272,28 +279,31 @@ if __name__ == '__main__':
 
 
     test_errors = defaultdict(list)
+    W_star, w_star, c = generate_quadratic_params()
+
     for run_id in range(args.num_runs):
         run_test_errors = defaultdict(list)
         for sigma2 in noise_variances:
             # Generate data
-            train_data, test_data, extra_data = generate_quadratic_data(sigma2=sigma2)
+            train_data, test_data, extra_data = generate_quadratic_data(W_star=W_star, w_star=w_star, c=c,
+                                                                        sigma2=sigma2)
             print(f'Noise variance: {sigma2}')
             for optim_cls in optimizer_classes:
                 name = optim_cls.__name__ + f'_sigma2={sigma2}' + f'_run={1 + run_id}'
                 print(f'\n\nOptimizer: {optim_cls.__name__}')
                 if optim_cls.__name__ == 'Kfac':
-                    mlp_output_sizes = ([width] * (num_layers - 1) if num_layers > 1 else []) + [1]
+                    mlp_output_sizes = ([args.width] * (num_layers - 1) if num_layers > 1 else []) + [1]
                     train_loss, hk_model, params, train_logs = kfac_train(train_data, mlp_output_sizes,
-                                                                         max_iter=max_iter,
-                                                              damping=args.damping, tol=tol, name=name,
-                                                              folder_path=folder_path, print_every=args.print_every)
+                                                                          max_iter=args.max_iter, damping=args.damping,
+                                                                          tol=args.tol, print_every=args.print_every,
+                                                                          lr=1e-2*lr)
                     test_loss = kfac_test(hk_model, params, test_data)
                 else:
                     # Instantiate the optimizer
                     optimizer = instantiate_optimizer(optim_cls, train_data, extra_data)
                     # Train the model
-                    train_loss, train_logs = train(model, train_data, optimizer, loss_function, tol, max_iter,
-                                       print_every=args.print_every, name=name, folder_path=folder_path)
+                    train_loss, train_logs = train(model, train_data, optimizer, loss_function, args.tol, args.max_iter,
+                                                   print_every=args.print_every)
                     # Test the model
                     test_loss = test(model, test_data, loss_function)
                     test_loss = test_loss if (test_loss < threshold or not threshold) else float('nan')
@@ -306,9 +316,6 @@ if __name__ == '__main__':
 
                 # Save Results
                 save_results(test_errors, folder_path, train_logs, name)
-
-    # make dir, save plot and params
-
 
 
 
