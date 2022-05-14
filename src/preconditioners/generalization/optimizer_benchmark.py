@@ -62,7 +62,7 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
         model.train()
 
         previous_loss = current_loss
-        previous_model_state = model.state_dict()
+        # previous_model_state = model.state_dict()
 
         # Get and prepare inputs
         inputs, targets = train_data[:]
@@ -105,36 +105,26 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
         no_improvement_counter += 1 if np.abs(delta_loss) < 1e-6 else 0
         if no_improvement_counter > 5:  # stagnation
             condition = 'stagnation'
-        elif delta_loss > 1e-3 or np.isnan(delta_loss):
-            condition = 'overshooting'
-            model.load_state_dict(previous_model_state)  # recover previous model
-            current_loss = previous_loss
+        # elif delta_loss > 1e-3 or np.isnan(delta_loss):
+        #     condition = 'overshooting'
+        #     model.load_state_dict(previous_model_state)  # recover previous model
+        #     current_loss = previous_loss
         elif current_loss <= tol:
             condition = 'tol'
         elif epoch >= max_iter:
             condition = 'max_iter'
 
+        train_logs['losses'].append(current_loss)
+
     # Final print
     print('*** FINAL EPOCH ***')
     print(f'Epoch {epoch}: Train loss: {current_loss:.4f}, Stop condition: {condition}')
     #
-    # # Save train logs
-    # train_logs['condition'] = condition
-    # train_logs['losses'].append(current_loss)
-    #
-    # plt.title(name + ' | ' + condition)
-    # plt.xlabel('Epoch')
-    # plt.ylabel('Train Loss')
-    # plt.plot(np.arange(1, 1 + len(train_logs['losses'])), train_logs['losses'])
-    #
-    # plt.savefig(os.path.join(folder_path, 'train_logs', f'{name}.pdf'))
-    # plt.close()
-    #
-    # with open(os.path.join(folder_path, 'train_logs', f'{name}_train_logs.pkl'), 'wb') as f:
-    #     pickle.dump(train_logs, f)
+    # Save train logs
+    train_logs['condition'] = condition
 
     # Return loss
-    return current_loss
+    return current_loss, train_logs
 
 
 def test(model, test_data, loss_function):
@@ -173,20 +163,13 @@ def generate_quadratic_data(sigma2):
     return train_data, test_data, extra_data
 
 
-def save_results(test_errors, folder_path):
+def save_results(test_errors, folder_path, train_logs, name):
     mean_test_errors = defaultdict(list)
     for optim_cls, test_losses in test_errors.items():
         test_losses = np.array(test_losses)
         test_losses = test_losses.reshape(test_losses.shape[0], test_losses.shape[1])
         mean_test_errors[optim_cls] = np.nanmean(test_losses, axis=0).tolist()
 
-        # Plot the results
-    for optim_cls in optimizer_classes:
-        plt.scatter(noise_variances, mean_test_errors[optim_cls.__name__], label=optim_cls.__name__)
-
-        plt.xlabel('Noise variance')
-        plt.ylabel('Test loss')
-        plt.legend([optim_cls.__name__ for optim_cls in optimizer_classes])
     # Save test_errors
     with open(os.path.join(folder_path, 'test_errors.pkl'), 'wb') as f:
         pickle.dump(test_errors, f)
@@ -194,18 +177,40 @@ def save_results(test_errors, folder_path):
     with open(os.path.join(folder_path, 'mean_test_errors.pkl'), 'wb') as f:
         pickle.dump(mean_test_errors, f)
         # Save figure
-    plt.savefig(os.path.join(folder_path, 'plot.pdf'), format='pdf')
 
+    # Save train logs
+    plt.title(name + ' | ' + train_logs['condition'])
+    plt.xlabel('Epoch')
+    plt.ylabel('Train Loss')
+    plt.plot(train_logs['losses'])
+
+    plt.savefig(os.path.join(folder_path, 'train_logs', f'{name}.pdf'))
+    plt.close()
+
+    with open(os.path.join(folder_path, 'train_logs', f'{name}_train_logs.pkl'), 'wb') as f:
+        pickle.dump(train_logs, f)
+
+    # Plot the results
+    try:
+        for optim_cls in optimizer_classes:
+            plt.scatter(noise_variances, mean_test_errors[optim_cls.__name__], label=optim_cls.__name__)
+
+            plt.xlabel('Noise variance')
+            plt.ylabel('Test loss')
+            plt.legend([optim_cls.__name__ for optim_cls in optimizer_classes])
+
+        plt.savefig(os.path.join(folder_path, 'plot.pdf'), format='pdf')
+        plt.show()
+    except:
+        pass
     # Print path to results
     print(f'Results saved to {folder_path}')
-
-    plt.show()
 
 # Fix parameters
 tol = args.tol  # Eduard comment: This needs to be a lot smaller later on
 lr = 1e-3
 d = 10
-num_layers = 2
+num_layers = 3
 loss_function = torch.nn.MSELoss()
 r2 = 1  # signal
 ro = 0.5
@@ -221,7 +226,7 @@ test_size = args.test_train_ratio*train_size
 model = MLP(in_channels=d, num_layers=num_layers, hidden_channels=width).double().to(settings.DEVICE)
 # Fix variables
 noise_variances = np.linspace(1, 10, 20)
-optimizer_classes = [GradientDescent, PrecondGD, Kfac]
+optimizer_classes = [GradientDescent, Kfac]
 
 threshold = args.test_loss_threshold if args.test_loss_threshold else 0
 
@@ -261,6 +266,10 @@ if __name__ == '__main__':
     os.makedirs(folder_path)
     os.makedirs(os.path.join(folder_path, 'train_logs'))
 
+    # Save params
+    with open(os.path.join(folder_path, 'params.json'), 'w') as f:
+        json.dump(params_dict, f)
+
 
     test_errors = defaultdict(list)
     for run_id in range(args.num_runs):
@@ -270,11 +279,12 @@ if __name__ == '__main__':
             train_data, test_data, extra_data = generate_quadratic_data(sigma2=sigma2)
             print(f'Noise variance: {sigma2}')
             for optim_cls in optimizer_classes:
-                name = optim_cls.__name__ + f'_sigma2_{sigma2}' + f'_run_{run_id}'
+                name = optim_cls.__name__ + f'_sigma2={sigma2}' + f'_run={1 + run_id}'
                 print(f'\n\nOptimizer: {optim_cls.__name__}')
                 if optim_cls.__name__ == 'Kfac':
                     mlp_output_sizes = ([width] * (num_layers - 1) if num_layers > 1 else []) + [1]
-                    train_loss, hk_model, params = kfac_train(train_data, mlp_output_sizes, max_iter=max_iter,
+                    train_loss, hk_model, params, train_logs = kfac_train(train_data, mlp_output_sizes,
+                                                                         max_iter=max_iter,
                                                               damping=args.damping, tol=tol, name=name,
                                                               folder_path=folder_path, print_every=args.print_every)
                     test_loss = kfac_test(hk_model, params, test_data)
@@ -282,7 +292,7 @@ if __name__ == '__main__':
                     # Instantiate the optimizer
                     optimizer = instantiate_optimizer(optim_cls, train_data, extra_data)
                     # Train the model
-                    train_loss = train(model, train_data, optimizer, loss_function, tol, max_iter,
+                    train_loss, train_logs = train(model, train_data, optimizer, loss_function, tol, max_iter,
                                        print_every=args.print_every, name=name, folder_path=folder_path)
                     # Test the model
                     test_loss = test(model, test_data, loss_function)
@@ -291,16 +301,15 @@ if __name__ == '__main__':
 
                 run_test_errors[optim_cls.__name__].append(test_loss)
 
-        for optim_cls, test_losses in run_test_errors.items():
-            test_errors[optim_cls].append(test_losses)
+                for optim_cls, test_losses in run_test_errors.items():
+                    test_errors[optim_cls].append(test_losses)
+
+                # Save Results
+                save_results(test_errors, folder_path, train_logs, name)
 
     # make dir, save plot and params
 
-    # Save params
-    with open(os.path.join(folder_path, 'params.json'), 'w') as f:
-        json.dump(params_dict, f)
 
-    # Save Results
-    save_results(test_errors, folder_path)
+
 
 

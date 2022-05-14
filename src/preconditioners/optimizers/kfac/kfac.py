@@ -47,7 +47,7 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=1
         value_func_has_state=False,
         value_func_has_rng=False,
         use_adaptive_learning_rate=True,
-        use_adaptive_momentum=True,
+        use_adaptive_momentum=False,
         use_adaptive_damping=True,
         initial_damping=damping,
         multi_device=False,
@@ -73,7 +73,7 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=1
     while not condition:
         rng, key = jax.random.split(rng)
         previous_loss = current_loss
-        params, opt_state, stats = optimizer.step(params, opt_state, key, batch=input_dataset)
+        params, opt_state, stats = optimizer.step(params, opt_state, key, batch=input_dataset, momentum=0.0)
 
         current_loss = float(stats['loss'])
 
@@ -85,7 +85,7 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=1
 
         # Update condition
         delta_loss = current_loss - previous_loss
-        no_improvement_counter += 1 if jnp.abs(delta_loss) < 1e-6 else 0
+        no_improvement_counter += 1 if jnp.abs(delta_loss) < 1e-8 else 0
         if no_improvement_counter > 5:  # stagnation
             condition = 'stagnation'
         elif current_loss <= tol:
@@ -93,28 +93,18 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=1
         elif epoch >= max_iter:
             condition = 'max_iter'
 
+        train_logs['losses'].append(current_loss)
+
     # Final print
     print('*** FINAL EPOCH ***')
     print(f'Epoch {epoch}: Train loss: {current_loss:.4f}, Stop condition: {condition}')
-    #
-    # # Save train logs
-    # train_logs['condition'] = condition
-    # train_logs['losses'].append(current_loss)
-    #
-    # plt.title(name + ' | ' + condition)
-    # plt.xlabel('Epoch')
-    # plt.ylabel('Train Loss')
-    # plt.plot(np.arange(1, 1 + len(train_logs['losses'])), train_logs['losses'])
-    #
-    # plt.savefig(os.path.join(folder_path, 'train_logs', f'{name}.pdf'))
-    # plt.close()
-    #
-    # with open(os.path.join(folder_path, 'train_logs', f'{name}_train_logs.pkl'), 'wb') as f:
-    #     pickle.dump(train_logs, f)
+
+    # Save train logs
+    train_logs['condition'] = condition
 
     # Return loss
 
-    return current_loss, hk_model, params
+    return current_loss, hk_model, params, train_logs
 
 
 def test(model, model_params, input_dataset):

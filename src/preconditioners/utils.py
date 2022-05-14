@@ -422,11 +422,11 @@ def get_batch_jacobian(net, x):
     noutputs = net.out_dim
     # x b, d
     x = x.unsqueeze(1)  # b, 1 ,d
-    n = x.size()[0]
+    b = x.size()[0]
     x = x.repeat(1, noutputs, 1)  # b, out_dim, d
     x.requires_grad_(True)
     y = net(x)
-    input_val = torch.eye(noutputs).reshape(1, noutputs, noutputs).repeat(n, 1, 1)
+    input_val = torch.eye(noutputs).reshape(1, noutputs, noutputs).repeat(b, 1, 1)
     y.backward(input_val, retain_graph=True)
     return x.grad.data
 
