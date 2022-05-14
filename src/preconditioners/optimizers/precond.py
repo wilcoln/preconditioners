@@ -1,5 +1,6 @@
 import torch
 
+import settings
 from preconditioners.optimizers.precond_base import PrecondBase
 from preconditioners.utils import model_gradients_using_backprop
 
@@ -27,5 +28,5 @@ class PrecondGD(PrecondBase):
 
         # Compute the inverse of the fisher information matrix
         # add damping to avoid division by zero
-        p += torch.eye(p.shape[0]) * group['damping']
+        p += torch.eye(p.shape[0]).to(settings.DEVICE) * group['damping']
         return torch.cholesky_inverse(p)

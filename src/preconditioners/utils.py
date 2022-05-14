@@ -399,7 +399,7 @@ def get_jacobian(net, x, noutputs):
     x = x.repeat(noutputs, 1)
     x.requires_grad_(True)
     y = net(x)
-    y.backward(torch.eye(noutputs))
+    y.backward(torch.eye(noutputs).to(settings.DEVICE))
     return x.grad.data
 
 
@@ -495,41 +495,3 @@ class MLP(nn.Module):
             layer.weight.data.normal_(0, tmp)
             layer.bias.data.normal_(0, sigma_b)
         self.output_layer.weight.data.normal_(0, tmp)
-
-
-def train(model, train_dataset, optimizer, loss_function, n_epochs, print_every=1):
-    current_loss = 0
-
-    for epoch in range(n_epochs):
-        model.train()
-
-        # Get and prepare inputs
-        inputs, targets = train_dataset[:]
-        # Set the inputs and targets to the device
-        inputs, targets = inputs.double().to(settings.DEVICE), targets.double().to(settings.DEVICE)
-        targets = targets.reshape((targets.shape[0], 1))
-
-        # Zero the gradients
-        optimizer.zero_grad()
-
-        # Perform forward pass
-        outputs = model(inputs)
-
-        # Compute loss
-        loss = loss_function(outputs, targets)
-
-        # Perform backward pass
-        loss.backward()
-
-        # Perform optimization
-        optimizer.step()
-
-        # Update statistics
-        current_loss = loss.item()
-
-        if epoch % print_every == 0:
-            print(f'Epoch {epoch + 1}: Train loss: {current_loss:.4f}')
-
-    return current_loss
-
-

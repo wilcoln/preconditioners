@@ -9,8 +9,8 @@ from . import kfac_jax
 L2_REG = 0
 
 
-def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, lr, print_every=10):
-    train_logs = {'condition': None, 'losses': []}
+def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=10):
+    model_logs = {'condition': None, 'losses': []}
 
     def model_fn(x):
         """A Haiku MLP model function - three hidden layer network with tanh."""
@@ -36,7 +36,7 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, lr, print_eve
 
         # The optimizer assumes that the function you provide has already added
         # the L2 regularizer to its gradients.
-        return loss + L2_REG * kfac_jax.utils.inner_product(model_params, model_params) / 2.0
+        return loss  # + L2_REG * kfac_jax.utils.inner_product(model_params, model_params) / 2.0
 
     # Create the optimizer
     optimizer = kfac_jax.Optimizer(
@@ -45,7 +45,7 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, lr, print_eve
         value_func_has_aux=False,
         value_func_has_state=False,
         value_func_has_rng=False,
-        use_adaptive_learning_rate=False,
+        use_adaptive_learning_rate=True,
         use_adaptive_momentum=False,
         use_adaptive_damping=False,
         # initial_damping=damping,
@@ -73,7 +73,7 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, lr, print_eve
         rng, key = jax.random.split(rng)
         previous_loss = current_loss
         params, opt_state, stats = optimizer.step(params, opt_state, key, batch=input_dataset, momentum=0.0,
-                                                  damping=damping, learning_rate=lr)
+                                                  damping=damping)
 
         current_loss = float(stats['loss'])
 
@@ -93,18 +93,18 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, lr, print_eve
         elif epoch >= max_iter:
             condition = 'max_iter'
 
-        train_logs['losses'].append(current_loss)
+        model_logs['losses'].append(current_loss)
 
     # Final print
     print('*** FINAL EPOCH ***')
     print(f'Epoch {epoch}: Train loss: {current_loss:.4f}, Stop condition: {condition}')
 
     # Save train logs
-    train_logs['condition'] = condition
+    model_logs['condition'] = condition
 
     # Return loss
 
-    return current_loss, hk_model, params, train_logs
+    return current_loss, hk_model, params, model_logs
 
 
 def test(model, model_params, input_dataset):
