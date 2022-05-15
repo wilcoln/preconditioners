@@ -48,7 +48,7 @@ parser.add_argument('--width', help='Hidden channels', type=int)
 parser.add_argument('--damping', help='damping', type=float, default=1.0)
 parser.add_argument('--tol', help='tol', type=float, default=1e-3)
 parser.add_argument('--lr', help='lr', type=float, default=1e-3)
-parser.add_argument('--gd_lr', help='gd lr', type=float, default=1e-3)
+parser.add_argument('--gd_lr', help='gd lr', type=float, default=None)
 parser.add_argument('--stagnation_threshold', help='Maximum change in loss that counts as no progress', type=float, default=1e-6)
 parser.add_argument('--stagnation_count_max', help='Maximum number of iterations of no progress before the experiment terminates', type=int, default=5)
 # Data parameters
@@ -101,7 +101,8 @@ def instantiate_optimizer(optimizer_class, train_data, extra_data):
         return optimizer_class(model, lr=args.lr, labeled_data=labeled_data, unlabeled_data=unlabeled_data,
                                damping=args.damping, is_linear=args.use_init_fisher)
     elif optimizer_class == GradientDescent:
-        return GradientDescent(model.parameters(), lr=args.gd_lr)
+        lr = args.gd_lr if args.gd_lr is not None else args.lr
+        return GradientDescent(model.parameters(), lr=lr)
 
 
 def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'), print_every=10):
@@ -335,6 +336,7 @@ if __name__ == '__main__':
 
                 model_logs['test_loss'] = test_loss
                 save_model_logs(model_logs, results_dir, model_name)
+                print(f"Test loss: {test_loss:4f}")
 
                 # Add this test loss to the current run results
                 run_test_errors[optim_cls.__name__].append(test_loss)
