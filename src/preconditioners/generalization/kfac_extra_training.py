@@ -82,17 +82,18 @@ class ExtraDataExperiment:
     def step(self, train_data, extra_data, key):
         """Performs one step of training for both models"""
         lr = None if self.use_adaptive_lr else self.lr
+        scaling = self.lr if self.use_adaptive_lr else 1
         # Update KFAC
         key, sub_key = jax.random.split(key)
         self.params, self.opt_state, _ = self.optimizer.step(
             self.params, self.opt_state, sub_key, momentum=0., damping=self.damping,
-            learning_rate=lr, batch=train_data, batch_extra=train_data)
+            learning_rate=lr, learning_rate_scaling=scaling, batch=train_data, batch_extra=train_data)
 
         # Update KFAC-extra
         key, sub_key = jax.random.split(key)
         self.params_extra, self.opt_state_extra, _ = self.optimizer.step(
             self.params_extra, self.opt_state_extra, sub_key, momentum=0., damping=self.damping,
-            learning_rate=lr, batch=train_data, batch_extra=extra_data)
+            learning_rate=lr, learning_rate_scaling=scaling, batch=train_data, batch_extra=extra_data)
 
         self.epoch += 1
 

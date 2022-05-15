@@ -749,6 +749,7 @@ class Optimizer(utils.WithStagedMethods):
             batch_extra: utils.Batch,
             func_state: Optional[utils.FuncState],
             learning_rate: Optional[chex.Array],
+            learning_rate_scaling: Optional[chex.Array],
             momentum: Optional[chex.Array],
             damping: Optional[chex.Array]
     ) -> ReturnEither:
@@ -764,13 +765,13 @@ class Optimizer(utils.WithStagedMethods):
             learning_rate, momentum,
             state.damping if self._use_adaptive_damping else damping,
             state.step_counter)
-        func_args_extra, rng = self._setup_func_args_and_rng(
-            params, rng, batch_extra, func_state)
         func_args, rng = self._setup_func_args_and_rng(
+            params, rng, batch_extra, func_state)
+        func_args_train, rng = self._setup_func_args_and_rng(
             params, rng, batch, func_state)
 
         # Update curvature estimate
-        state = self._update_estimator_curvature(state, func_args_extra, rng,
+        state = self._update_estimator_curvature(state, func_args, rng,
                                                  self._curvature_ema, 1.0)
         del rng  # should not be used after this point!
 
@@ -778,7 +779,7 @@ class Optimizer(utils.WithStagedMethods):
             param_norm = utils.norm(params)
 
         # Compute loss and gradients
-        loss, grads, func_state, aux = self._compute_loss_and_grads(func_args)
+        loss, grads, func_state, aux = self._compute_loss_and_grads(func_args_train)
 
         # Sync
         loss, grads = utils.pmean_if_pmap((loss, grads), self.pmap_axis_name)
@@ -804,10 +805,13 @@ class Optimizer(utils.WithStagedMethods):
             grads=grads,
             learning_rate=learning_rate,
             momentum=momentum,
-            func_args=func_args)
+            func_args=func_args_train)
 
         # Compute delta and update velocities
         delta = self.weighted_sum_of_objects(vectors, coefficients)
+        # TODO: Deadline bodge, fix it
+        if self._use_adaptive_learning_rate:
+            delta = utils.scalar_mul(delta, learning_rate_scaling)
         state.velocities = delta
 
         if self._include_norms_in_stats:
@@ -877,6 +881,7 @@ class Optimizer(utils.WithStagedMethods):
             batch_extra: Optional[utils.Batch] = None,
             func_state: Optional[utils.FuncState] = None,
             learning_rate: Optional[chex.Array] = None,
+            learning_rate_scaling: Optional[chex.Array] = 1.,
             momentum: Optional[chex.Array] = None,
             damping: Optional[chex.Array] = None,
             global_step_int: Optional[int] = None
@@ -947,7 +952,7 @@ class Optimizer(utils.WithStagedMethods):
             batch = next(data_iterator)
 
         return self._step(params, state, rng, batch, batch_extra, func_state,
-                          learning_rate, momentum, damping)
+                          learning_rate, learning_rate_scaling, momentum, damping)
 
     def compute_l2_quad_matrix(
             self,

@@ -34,6 +34,7 @@ def get_args():
     parser.add_argument('--sigma2_step', help='Minimum standard deviation of label noise', type=float, default=.5)
     # Experiment params
     parser.add_argument('--max_iter', help='Max epochs', type=int, default=256)
+    parser.add_argument('--num_runs', help='Number of runs per variance value', type=int, default=1)
     parser.add_argument('--save_every', help='Number of epochs per log', type=int, default=8)
     parser.add_argument('--save_folder', help='Experiments are saved here', type=str, default="experiments/")
     parser.add_argument('--num_test_points', help='Number of test points to analyse', type=int, default=32)
@@ -64,7 +65,7 @@ if __name__ == "__main__":
     max_iter, save_every, num_test_points = args.max_iter, args.save_every, args.num_test_points
     ro, r1, regime = 0.5, 1, 'autoregressive'
     min_var, max_var, step_var = args.sigma2_min, args.sigma2_max, args.sigma2_step
-    save_folder = args.save_folder
+    save_folder, num_runs = args.save_folder, args.num_runs
 
     # Generate data
     print("Generating data...")
@@ -95,33 +96,34 @@ if __name__ == "__main__":
     # For each variance value, run the KFAC training comparison experiment
     for variance in np.arange(min_var, max_var + step_var, step_var):
         variance = variance.astype(float)
-        # Add noise to labels
-        xi = np.random.normal(0, np.sqrt(variance), size=(train_size + test_size, 1))
-        y = y_noiseless + xi
-        train_data = (x[:train_size], y[:train_size])
-        test_data = (x[train_size:], y[train_size:])
+        for i in range(num_runs):
+            # Add noise to labels
+            xi = np.random.normal(0, np.sqrt(variance), size=(train_size + test_size, 1))
+            y = y_noiseless + xi
+            train_data = (x[:train_size], y[:train_size])
+            test_data = (x[train_size:], y[train_size:])
 
-        print(f"\nPerforming expeirment for sigma2={variance}...")
-        params_dict['sigma2'] = variance
+            print(f"\nPerforming expeirment for sigma2={variance}...")
+            params_dict['sigma2'] = variance
 
-        # Set up experiment
-        print("Setting up optimizers...")
-        params = init_params
-        experiment = ExtraDataExperiment(model, params, lr=lr, damping=damping, l2=l2, use_adaptive_lr=use_adaptive_lr)
-        key, sub_key = jax.random.split(key)
-        experiment.setup(train_data, extra_data, sub_key)
-
-        # Run experiment
-        print("Starting training...")
-        experiment.log_result(train_data, test_data)
-        while experiment.epoch < max_iter:
+            # Set up experiment
+            print("Setting up optimizers...")
+            params = init_params
+            experiment = ExtraDataExperiment(model, params, lr=lr, damping=damping, l2=l2, use_adaptive_lr=use_adaptive_lr)
             key, sub_key = jax.random.split(key)
-            experiment.step(train_data, extra_data, sub_key)
+            experiment.setup(train_data, extra_data, sub_key)
 
-            if experiment.epoch % save_every == 0:
-                experiment.log_result(train_data, test_data)
+            # Run experiment
+            print("Starting training...")
+            experiment.log_result(train_data, test_data)
+            while experiment.epoch < max_iter:
+                key, sub_key = jax.random.split(key)
+                experiment.step(train_data, extra_data, sub_key)
 
-        # Save results
-        experiment.save_results(experiment_folder, params_dict)
-        print("Saved results")
+                if experiment.epoch % save_every == 0:
+                    experiment.log_result(train_data, test_data)
+
+            # Save results
+            experiment.save_results(experiment_folder, params_dict)
+            print("Saved results")
     print("Finished")
