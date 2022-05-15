@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 from torch import nn
 import torch.nn.functional as F
 
-import preconditioners.settings
+from preconditioners.settings import DEVICE
 from preconditioners.cov_approx.variance import var_solve
 
 
@@ -309,7 +309,7 @@ def get_jacobian(net, x, noutputs):
     x = x.repeat(noutputs, 1)
     x.requires_grad_(True)
     y = net(x)
-    y.backward(torch.eye(noutputs).to(settings.DEVICE))
+    y.backward(torch.eye(noutputs).to(DEVICE))
     return x.grad.data
 
 
@@ -379,13 +379,15 @@ class MLP(nn.Module):
     def __init__(self, in_channels, num_layers=2, hidden_channels=100, std=1.):
         super().__init__()
         self.in_layer = nn.Linear(in_channels, hidden_channels, bias=False)
+        self.hidden_channels = hidden_channels
         self.hidden_layers = nn.ModuleList([
             nn.Linear(hidden_channels, hidden_channels)
             for _ in range(num_layers - 2)
         ])
         self.output_layer = nn.Linear(hidden_channels, 1, bias=False)
         self.out_dim = 1
-        self.std = std
+
+        self.init_params(sigma_w=std, sigma_b=std)
 
     def forward(self, x):
         """ Forward pass of the MLP. """

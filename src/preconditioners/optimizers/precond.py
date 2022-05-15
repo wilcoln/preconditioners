@@ -15,7 +15,7 @@ class PrecondGD(PrecondBase):
     def _compute_fisher(self) -> torch.Tensor:
         group = self.param_groups[0]
 
-        # labeled_data = group['labeled_data']
+        labeled_data = group['labeled_data']
         unlabeled_data = group['unlabeled_data']
 
         # Compute the gradient of the output on the labeled and unlabeled data w.r.t the model parameters
