@@ -1,3 +1,0 @@
-1. It makes a huge difference if I estimate cov_xz with test_data (200) (empir_test_2022-03-22-11-58) or with
-extra_data (3000) (empir_test_2022-03-22-11-50) in terms of *test* error (note test error is again not generalization).
-(cov_z was estimated using test_data in all experiments here).

@@ -1,1 +1,0 @@
-{"tol": 0.001, "lr": 0.1, "extra_size": 1000, "d": 10, "num_params": 100, "train_size": 50, "test_size": 25, "loss_function": "MSELoss()", "num_layers": 2, "max_iter": 1000, "r2": 1, "ro": 0.5}

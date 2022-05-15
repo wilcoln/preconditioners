@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 from torch import nn
 import torch.nn.functional as F
 
-import preconditioners.settings
+from preconditioners.settings import DEVICE
 from preconditioners.cov_approx.variance import var_solve
 
 
@@ -309,7 +309,7 @@ def get_jacobian(net, x, noutputs):
     x = x.repeat(noutputs, 1)
     x.requires_grad_(True)
     y = net(x)
-    y.backward(torch.eye(noutputs))
+    y.backward(torch.eye(noutputs).to(DEVICE))
     return x.grad.data
 
 
@@ -333,11 +333,11 @@ def get_batch_jacobian(net, x):
     noutputs = net.out_dim
     # x b, d
     x = x.unsqueeze(1)  # b, 1 ,d
-    n = x.size()[0]
+    b = x.size()[0]
     x = x.repeat(1, noutputs, 1)  # b, out_dim, d
     x.requires_grad_(True)
     y = net(x)
-    input_val = torch.eye(noutputs).reshape(1, noutputs, noutputs).repeat(n, 1, 1)
+    input_val = torch.eye(noutputs).reshape(1, noutputs, noutputs).repeat(b, 1, 1)
     y.backward(input_val, retain_graph=True)
     return x.grad.data
 
@@ -379,13 +379,15 @@ class MLP(nn.Module):
     def __init__(self, in_channels, num_layers=2, hidden_channels=100, std=1.):
         super().__init__()
         self.in_layer = nn.Linear(in_channels, hidden_channels, bias=False)
+        self.hidden_channels = hidden_channels
         self.hidden_layers = nn.ModuleList([
             nn.Linear(hidden_channels, hidden_channels)
             for _ in range(num_layers - 2)
         ])
         self.output_layer = nn.Linear(hidden_channels, 1, bias=False)
         self.out_dim = 1
-        self.std = std
+
+        self.init_params(sigma_w=std, sigma_b=std)
 
     def forward(self, x):
         """ Forward pass of the MLP. """
@@ -398,10 +400,15 @@ class MLP(nn.Module):
         return x
 
     def reset_parameters(self):
-        torch.nn.init.normal_(self.in_layer.weight, 0, self.std)
+        self.init_params(sigma_w=1, sigma_b=1)
+
+    def init_params(self, sigma_w, sigma_b):
+        tmp = sigma_w / np.sqrt(self.hidden_channels)
+        self.in_layer.weight.data.normal_(0, tmp)
         for layer in self.hidden_layers:
-            torch.nn.init.normal_(layer.weight, 0, self.std)
-        torch.nn.init.normal_(self.output_layer.weight, 0, self.std)
+            layer.weight.data.normal_(0, tmp)
+            layer.bias.data.normal_(0, sigma_b)
+        self.output_layer.weight.data.normal_(0, tmp)
 
 
 class LinearizedModel(nn.Module):

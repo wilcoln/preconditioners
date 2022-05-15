@@ -1,4 +1,0 @@
-1. computing cov_matrix on test_data is better than on benchmark data (separate from test data). Here the 
-cov_xz matrix was computed using extra_data, not test_data (this makes a huge difference, see empir_test).
-2. computing cov_matrix with extra_data + training_data is better than just extra_data, but probably just
-because there's more data.
