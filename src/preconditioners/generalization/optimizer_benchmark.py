@@ -35,6 +35,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--num_runs', help='Number of runs', default=1, type=int)
 parser.add_argument('--max_iter', help='Max epochs', default=float('inf'), type=int)
 parser.add_argument('--max_var', help='Max var', default=10, type=int)
+parser.add_argument('--min_var', help='Min var', default=1, type=int)
+parser.add_argument('--num_plot_poins', help='Number of plot points', default=10, type=int)
 parser.add_argument('--results_dir', help='Folder path', type=str)
 # Dataset size
 parser.add_argument('--test_train_ratio', help='Test train ratio', default=1, type=int)
@@ -46,6 +48,7 @@ parser.add_argument('--width', help='Hidden channels', type=int)
 parser.add_argument('--damping', help='damping', type=float, default=1.0)
 parser.add_argument('--tol', help='tol', type=float, default=1e-3)
 parser.add_argument('--lr', help='lr', type=float, default=1e-3)
+parser.add_argument('--gd_lr', help='gd lr', type=float, default=1e-3)
 parser.add_argument('--stagnation_threshold', help='Maximum change in loss that counts as no progress', type=float, default=1e-6)
 parser.add_argument('--stagnation_count_max', help='Maximum number of iterations of no progress before the experiment terminates', type=int, default=5)
 # Data parameters
@@ -54,6 +57,7 @@ parser.add_argument('--r2', help='r2', type=float, default=1)
 parser.add_argument('--d', help='d', type=float, default=10)
 parser.add_argument('--use_init_fisher', action='store_true')
 parser.add_argument('--print_every', help='print_every', type=int, default=100)
+parser.add_argument('--num_runs', help='Number of runs', default=1, type=int)
 args = parser.parse_args()
 # endregion
 
@@ -78,8 +82,8 @@ assert args.print_every >= 1, 'Print every must be at least 1'
 # region Fixed & Derived variables
 # Fixed
 loss_function = torch.nn.MSELoss()
-noise_variances = np.linspace(1, args.max_var, 20)
 optimizer_classes = [Kfac, GradientDescent, PrecondGD]
+#optimizer_classes = [GradientDescent, PrecondGD]
 
 # Derived
 num_params = (1 + args.d) * args.width + (args.width ** 2) * (args.num_layers - 2)
@@ -97,7 +101,7 @@ def instantiate_optimizer(optimizer_class, train_data, extra_data):
         return optimizer_class(model, lr=args.lr, labeled_data=labeled_data, unlabeled_data=unlabeled_data,
                                damping=args.damping, is_linear=args.use_init_fisher)
     elif optimizer_class == GradientDescent:
-        return GradientDescent(model.parameters(), lr=args.lr)
+        return GradientDescent(model.parameters(), lr=args.gd_lr)
 
 
 def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'), print_every=10):
@@ -384,7 +388,7 @@ r2 = 1  # signal
 ro = 0.5
 
 # Fix variables
-noise_variances = np.linspace(1, 10, 20)
+noise_variances = np.linspace(args.min_variance, args.max_variance, args.num_plot_points)
 optimizer_classes = [GradientDescent, PrecondGD, Kfac]
 
 if __name__ == '__main__':
