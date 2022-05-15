@@ -47,8 +47,10 @@ class TestPinv(unittest.TestCase):
 
         #true_p_inv = (1 / self.labeled_data.shape[0]) * self.labeled_data.T @ self.labeled_data
         #true_p_inv += (1 / self.unlabeled_data.shape[0]) * self.unlabeled_data.T @ self.unlabeled_data
-        true_p_inv = self.labeled_data.T @ self.labeled_data + self.unlabeled_data.T @ self.unlabeled_data
-        true_p_inv *= 1/(self.labeled_data.shape[0] + self.unlabeled_data.shape[0])
+        # true_p_inv = self.labeled_data.T @ self.labeled_data + self.unlabeled_data.T @ self.unlabeled_data
+        # true_p_inv *= 1/(self.labeled_data.shape[0] + self.unlabeled_data.shape[0])
+        true_p_inv = self.unlabeled_data.T @ self.unlabeled_data
+        true_p_inv *= 1/self.unlabeled_data.shape[0]
         true_p_inv = torch.cholesky_inverse(true_p_inv)
 
         mat_error = torch.norm(p_inv - true_p_inv)
