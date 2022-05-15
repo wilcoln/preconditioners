@@ -1,0 +1,1 @@
+{"num_layers": 3, "num_runs": 1, "max_iter": 10, "test_train_ratio": 5, "extra_train_ratio": 15, "test_loss_threshold": 50.0, "train_size": 5, "results_dir": null, "width": 2, "damping": 1.0, "tol": 0.1, "lr": 0.001, "ro": 0.5, "r2": 1, "d": 10, "print_every": 1000}
