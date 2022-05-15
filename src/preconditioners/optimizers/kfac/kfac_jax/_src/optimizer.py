@@ -122,7 +122,7 @@ class Optimizer(utils.WithStagedMethods):
             include_norms_in_stats: bool = False,
     ):
         """Initializes the K-FAC optimizer with the provided settings.
-    
+
         Args:
           value_and_grad_func: Python callable. The function should return the value
             of the loss to be optimized and its gradients. If the argument
@@ -746,6 +746,7 @@ class Optimizer(utils.WithStagedMethods):
             state: "Optimizer.State",
             rng: chex.Array,
             batch: utils.Batch,
+            batch_extra: utils.Batch,
             func_state: Optional[utils.FuncState],
             learning_rate: Optional[chex.Array],
             momentum: Optional[chex.Array],
@@ -753,16 +754,23 @@ class Optimizer(utils.WithStagedMethods):
     ) -> ReturnEither:
         """A single full step of the optimizer."""
 
+        # KFAC is modified to use extra data
+
+        if batch_extra is None:
+            batch_extra = batch
+
         # Setup arguments
         learning_rate, momentum, state.damping = self._setup_state_and_schedules(
             learning_rate, momentum,
             state.damping if self._use_adaptive_damping else damping,
             state.step_counter)
+        func_args_extra, rng = self._setup_func_args_and_rng(
+            params, rng, batch_extra, func_state)
         func_args, rng = self._setup_func_args_and_rng(
             params, rng, batch, func_state)
 
         # Update curvature estimate
-        state = self._update_estimator_curvature(state, func_args, rng,
+        state = self._update_estimator_curvature(state, func_args_extra, rng,
                                                  self._curvature_ema, 1.0)
         del rng  # should not be used after this point!
 
@@ -866,6 +874,7 @@ class Optimizer(utils.WithStagedMethods):
             rng: chex.PRNGKey,
             data_iterator: Optional[Iterator[utils.Batch]] = None,
             batch: Optional[utils.Batch] = None,
+            batch_extra: Optional[utils.Batch] = None,
             func_state: Optional[utils.FuncState] = None,
             learning_rate: Optional[chex.Array] = None,
             momentum: Optional[chex.Array] = None,
@@ -937,7 +946,7 @@ class Optimizer(utils.WithStagedMethods):
         if data_iterator is not None:
             batch = next(data_iterator)
 
-        return self._step(params, state, rng, batch, func_state,
+        return self._step(params, state, rng, batch, batch_extra, func_state,
                           learning_rate, momentum, damping)
 
     def compute_l2_quad_matrix(

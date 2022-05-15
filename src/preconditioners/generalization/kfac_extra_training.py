@@ -16,7 +16,7 @@ from jax.tree_util import tree_map
 from preconditioners.datasets import generate_data, data_random_split
 from preconditioners.optimizers.kfac import kfac_jax
 
-def create_argparser():
+def get_args():
     parser = argparse.ArgumentParser()
     # Model params
     parser.add_argument('--num_layers', help='Number of layers', type=int, default=3)
@@ -25,7 +25,7 @@ def create_argparser():
     parser.add_argument('--lr', help='Learning rate', type=float, default=1e-1)
     parser.add_argument('--damping', help='Damping coefficient', type=float, default=1e-1)
     parser.add_argument('--l2', help='L2-regularization coefficient', type=float, default=0.)
-    parser.add_argument('--use_adaptive_lr', help='If set, uses adaptive lr', action='store_true')
+    parser.add_argument('--use_adaptive_lr', action='store_true')
     # Data params
     parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic'], default='quadratic')
     parser.add_argument('--train_size', help='Number of train examples', type=int, default=128)
@@ -39,6 +39,7 @@ def create_argparser():
     parser.add_argument('--save_every', help='Number of epochs per log', type=int, default=8)
     parser.add_argument('--save_folder', help='Experiments are saved here', type=str, default="experiments/")
     parser.add_argument('--num_test_points', help='Number of test points to analyse', type=int, default=32)
+
     return parser.parse_args()
 
 class ExtraDataExperiment:
@@ -77,61 +78,23 @@ class ExtraDataExperiment:
         self.optimizer_extra = create_optimizer(self.loss_fn, self.l2, self.use_adaptive_lr)
         key, sub_key = jax.random.split(key)
         self.opt_state_extra = self.optimizer_extra.init(self.params_extra, sub_key, extra_data)
-        self.opt_state_extra.damping = self.damping
-        self.grad_loss = jax.grad(self.loss_fn)
 
     def step(self, train_data, extra_data, key):
         """Performs one step of training for both models"""
+        lr = None if self.use_adaptive_lr else self.lr
         # Update KFAC
         key, sub_key = jax.random.split(key)
-        lr = None if self.use_adaptive_lr else self.lr
         self.params, self.opt_state, _ = self.optimizer.step(
             self.params, self.opt_state, sub_key, momentum=0., damping=self.damping,
-            learning_rate=lr, batch=train_data)
+            learning_rate=lr, batch=train_data, batch_extra=train_data)
 
         # Update KFAC-extra
-        # Compute curvature via step
-
         key, sub_key = jax.random.split(key)
-        delta = self._compute_extra_update(train_data, extra_data, lr, key)
-        if lr is None:
-            delta = kfac_jax.utils.scalar_mul(delta, self.lr)
-        self.params_extra = jax.tree_map(jnp.add, self.params_extra, delta)
+        self.params_extra, self.opt_state_extra, _ = self.optimizer.step(
+            self.params_extra, self.opt_state_extra, sub_key, momentum=0., damping=self.damping,
+            learning_rate=lr, batch=train_data, batch_extra=extra_data)
 
         self.epoch += 1
-
-    def _compute_extra_update(self, train_data, extra_data, lr, key):
-        grads = self.grad_loss(self.params_extra, train_data)
-
-        func_args, rng = self.optimizer_extra._setup_func_args_and_rng(
-            self.params_extra, key, extra_data, self.opt_state_extra)
-
-        # Update curvature estimate
-        self.opt_state_extra = self.optimizer_extra._update_estimator_curvature(self.opt_state_extra, func_args, rng,
-                                                 self.optimizer_extra._curvature_ema, 1.0)
-
-        # Update the inverse curvature
-        self.opt_state_extra = self.optimizer_extra._maybe_update_inverse_cache(self.opt_state_extra)
-
-        # Compute proposed directions
-        preconditioned_gradient = self.optimizer_extra._compute_preconditioned_gradient(
-            self.opt_state_extra, grads, lr)
-        vectors = (preconditioned_gradient, self.opt_state_extra.velocities)
-
-        # Compute the coefficients for the vectors
-        coefficients, quad_model_change = self.optimizer_extra._coefficients_and_quad_change(
-            state=self.opt_state_extra,
-            vectors=vectors,
-            grads=grads,
-            learning_rate=lr,
-            momentum=0.,
-            func_args=func_args)
-
-        # Compute delta and update velocities
-        delta = self.optimizer_extra.weighted_sum_of_objects(vectors, coefficients)
-        self.opt_state_extra.velocities = delta
-
-        return delta
 
     def log_result(self, train_data, test_data, verbose=True):
         # Get train and test loss
@@ -226,7 +189,7 @@ def create_loss_fn(model, l2):
 
     return loss_fn
 
-def create_optimizer(loss_fn, l2, use_adaptive_lr=False):
+def create_optimizer(loss_fn, l2, use_adaptive_lr):
     """Creates the KFAC optimizer"""
     return kfac_jax.Optimizer(
         value_and_grad_func=jax.value_and_grad(loss_fn),
@@ -235,11 +198,11 @@ def create_optimizer(loss_fn, l2, use_adaptive_lr=False):
         value_func_has_state=False,
         value_func_has_rng=False,
         multi_device=False,
-        use_adaptive_learning_rate=use_adaptive_lr,
+        use_adaptive_learning_rate=use_adaptive_lr
     )
 
 if __name__ == "__main__":
-    args = create_argparser()
+    args = get_args()
     train_size, test_size, extra_size = args.train_size, args.test_size, args.extra_size
     dataset, in_dim = args.dataset, args.in_dim
     width, num_layers = args.width, args.num_layers
@@ -270,6 +233,10 @@ if __name__ == "__main__":
     experiment = ExtraDataExperiment(model, params, lr=lr, damping=damping, l2=l2, use_adaptive_lr=use_adaptive_lr)
     key, sub_key = jax.random.split(key)
     experiment.setup(train_data, extra_data, sub_key)
+
+    print(train_data)
+    print(extra_data)
+    print(test_data)
 
     # Run experiment
     print("Starting training...")

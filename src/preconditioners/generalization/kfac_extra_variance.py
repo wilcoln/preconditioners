@@ -10,24 +10,24 @@ import jax
 from jax.example_libraries import stax
 from jax.nn.initializers import normal
 
-from preconditioners.datasets import generate_data, data_random_split
+from preconditioners.datasets import generate_data
 from preconditioners.generalization.kfac_extra_training import ExtraDataExperiment
 
-def create_argparser():
+def get_args():
     parser = argparse.ArgumentParser()
     # Model params
     parser.add_argument('--num_layers', help='Number of layers', type=int, default=3)
-    parser.add_argument('--width', help='', type=int, default=64)
+    parser.add_argument('--width', help='', type=int, default=128)
     # Optimizer params
-    parser.add_argument('--lr', help='Learning rate', type=float, default=1e-4)
-    parser.add_argument('--damping', help='Damping coefficient', type=float, default=1e-3)
+    parser.add_argument('--lr', help='Learning rate', type=float, default=1e-1)
+    parser.add_argument('--damping', help='Damping coefficient', type=float, default=1e-1)
     parser.add_argument('--l2', help='L2-regularization coefficient', type=float, default=0.)
     parser.add_argument('--use_adaptive_lr', action='store_true', default=False)
     # Data params
     parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic'], default='quadratic')
     parser.add_argument('--train_size', help='Number of train examples', type=int, default=128)
     parser.add_argument('--test_size', help='Number of test examples', type=int, default=128)
-    parser.add_argument('--extra_size', help='Number of test examples', type=int, default=128)
+    parser.add_argument('--extra_size', help='Number of test examples', type=int, default=256)
     parser.add_argument('--in_dim', help='Dimension of features', type=int, default=8)
     parser.add_argument('--sigma2_min', help='Minimum standard deviation of label noise', type=float, default=0.5)
     parser.add_argument('--sigma2_max', help='Minimum standard deviation of label noise', type=float, default=10)
@@ -56,7 +56,7 @@ def create_jax_model(width, num_layers, in_dim, out_dim, key):
     return f, params
 
 if __name__ == "__main__":
-    args = create_argparser()
+    args = get_args()
     train_size, test_size, extra_size = args.train_size, args.test_size, args.extra_size
     dataset, in_dim = args.dataset, args.in_dim
     width, num_layers = args.width, args.num_layers
@@ -83,6 +83,7 @@ if __name__ == "__main__":
     noiseless_data = generate_data(dataset, n=train_size + extra_size + test_size,
         d=in_dim, regime='autoregressive', ro=ro, r1=r1, sigma2=0)
     x, y = noiseless_data
+    y = np.expand_dims(y, 1)
     extra_data = (x[-extra_size:], y[-extra_size:])
     x = x[:-extra_size]
     y_noiseless = y[:-extra_size]
@@ -95,7 +96,7 @@ if __name__ == "__main__":
     for variance in np.arange(min_var, max_var + step_var, step_var):
         variance = variance.astype(float)
         # Add noise to labels
-        xi = np.random.normal(0, np.sqrt(variance), size=train_size + test_size)
+        xi = np.random.normal(0, np.sqrt(variance), size=(train_size + test_size, 1))
         y = y_noiseless + xi
         train_data = (x[:train_size], y[:train_size])
         test_data = (x[train_size:], y[train_size:])
