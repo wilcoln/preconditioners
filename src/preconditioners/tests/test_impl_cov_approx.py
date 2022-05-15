@@ -1,7 +1,7 @@
 import unittest
 
 from preconditioners.cov_approx.impl_cov_approx import *
-from preconditioners.utils import generate_c, generate_centered_linear_gaussian_data
+from preconditioners.datasets import generate_c, generate_centered_linear_gaussian_data
 
 
 class TestImplCov(unittest.TestCase):

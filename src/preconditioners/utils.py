@@ -1,5 +1,4 @@
 from mimetypes import init
-import warnings
 
 import numpy as np
 import pandas as pd
@@ -11,10 +10,8 @@ from sklearn.model_selection import train_test_split
 from torch import nn
 import torch.nn.functional as F
 
-import settings
-from preconditioners.cov_approx.variance import var_solve
-
 import preconditioners.settings
+from preconditioners.cov_approx.variance import var_solve
 
 
 def sq_loss(y_pred, y):
@@ -28,6 +25,9 @@ def calculate_risk(w_star, c, w=0):
 def calculate_risk_rf(a, w_star, c, cov_z, cov_zx):
     return a.dot(cov_z.dot(a)) + w_star.dot(c.dot(w_star)) - 2 * a.dot(cov_zx.dot(w_star))
 
+###
+### Exact solutions
+###
 
 def compute_best_achievable_interpolator(X, y, c_inv, m, snr, crossval_param=100):
     """ If snr is passed as a list then for each entry in snr, this function splits
@@ -129,91 +129,14 @@ def compute_optimal_ridge_regressor(X, y, snr):
 
     return m_1.dot(m_2.dot(y))
 
-
-def generate_m(c, source_condition='id'):
-    if source_condition == 'id':
-        m = np.eye(c.shape[0])
-
-    elif source_condition == 'easy':
-        m = c
-
-    elif source_condition == 'hard':
-        m = np.linalg.inv(c)
-
-    return m
-
-
-def generate_true_parameter(d=600, r2=5, m=None):
-    if m is None:
-        m = np.eye(d)
-
-    assert (m.shape[0] == d) & (m.shape[1] == d)
-
-    w_star = np.random.multivariate_normal(np.zeros(d), r2 / d * m)
-
-    return w_star
-
-def generate_W_star(d = 600, r2 = 5):
-    ' Return a somewhat random matrix of size (d, d), which does not have degenerate trace or determinant.'
-
-    ro = 0.4 + np.random.rand()/2
-    c = generate_c(ro=ro, regime='autoregressive', d=d)
-    V, D, Vt = np.linalg.svd(c)
-
-    for i in range(len(D)):
-        if np.random.rand()<0.25:
-            D[i] = D[i]*0.5
-        elif np.random.rand()>0.75:
-            D[i] = D[i]*2
-    D = np.abs(D + np.random.multivariate_normal(np.zeros(d), np.diag(D)/10))
-    largest_eval = np.max(D)
-    D = D/largest_eval
-
-    W = V.dot(np.diag(D).dot(Vt))*np.sqrt(r2/d) # this way x^T W x ~ sqrt(r2/d), which is the same as x^T w_star
-    return W
-
-
-def generate_c(ro=0.25,
-               regime='id',
-               d=600,
-               strong_feature=1,
-               strong_feature_ratio=1 / 2,
-               weak_feature=1):
-    c = np.eye(d)
-
-    if regime == 'id':
-        pass
-
-    elif regime == 'autoregressive':
-
-        for i in range(d):
-            for j in range(d):
-                c[i, j] = ro ** (abs(i - j))
-
-    elif regime == 'strong_weak_features':
-
-        s_1 = np.ones(int(d * strong_feature_ratio)) * strong_feature
-        s_2 = np.ones(d - int(d * strong_feature_ratio)) * weak_feature
-
-        c = np.diag(np.concatenate((s_1, s_2)))
-
-    elif regime == 'exponential':
-
-        s = np.linspace(0, 1, d + 1, endpoint=False)[1:]
-        quantile = - np.log(1 - s)  # quantile function of the standard exponential distribution
-
-        c = np.diag(quantile)
-
-    else:
-        raise AssertionError('wrong regime of covariance matrices')
-
-    return c
-
+###
+### Compute fisher
+###
 
 def generate_c_inv_empir(X, empir, alpha=0.25, mu = 0.1, geno_tol = 1e-6, X_extra = None, X_test = None):
 
     '''
-    Generates approximation of the inverse Fisher / covariance matrix. 
+    Generates approximation of the inverse Fisher / covariance matrix.
 
     Parameters
 
@@ -223,7 +146,7 @@ def generate_c_inv_empir(X, empir, alpha=0.25, mu = 0.1, geno_tol = 1e-6, X_extr
 
     empir :  Specifies the method used to approximate the Fisher / covariance.
 
-    alpha :  Regularization parameter in the Graphical Lasso, whenever glasso is used (e.g. 
+    alpha :  Regularization parameter in the Graphical Lasso, whenever glasso is used (e.g.
             if empir = 'gl' or empir = 'variance_gl').
 
     mu :  Regularization parameter in damping methods. E.g. in empir = 'extra', the result is
@@ -231,10 +154,10 @@ def generate_c_inv_empir(X, empir, alpha=0.25, mu = 0.1, geno_tol = 1e-6, X_extr
 
     geno_tol :  Tolerance for the genosolver which is a framework for optimization problems.
 
-    X_extra : n_extra x p matrix, where row i of X is the gradient of the model at the ith extra 
+    X_extra : n_extra x p matrix, where row i of X is the gradient of the model at the ith extra
             data point. Used in methods where the matrix is approximated using extra data.
 
-    X_test : n_test x p matrix, where row i of X is the gradient of the model at the ith test 
+    X_test : n_test x p matrix, where row i of X is the gradient of the model at the ith test
             data point. Used in methods where the matrix is approximated using test data.
 
     '''
@@ -246,7 +169,7 @@ def generate_c_inv_empir(X, empir, alpha=0.25, mu = 0.1, geno_tol = 1e-6, X_extr
     elif empir == 'gl':
         gl = GraphicalLasso(assume_centered=True, alpha=alpha, tol=1e-4).fit(X)
         c_inv_e = gl.precision_
-    
+
     elif empir == 'variance_gl':
         # compute glasso
         gl = GraphicalLasso(assume_centered=True, alpha=alpha, tol=1e-4).fit(X)
@@ -260,19 +183,19 @@ def generate_c_inv_empir(X, empir, alpha=0.25, mu = 0.1, geno_tol = 1e-6, X_extr
 
     elif empir == 'variance_id':
         n, d = X.shape
-        B = np.eye(d)        
+        B = np.eye(d)
         cov_empir = X.T.dot(X) / n
         C_init = initialize_C(cov_empir = cov_empir, e_1=0.1, e_2=0.5, ro=0.2)
         _, C = var_solve(B = B, X=X, CInit = C_init, np=np, geno_tol = geno_tol)
         c_inv_e = C.dot(C.T)
-    
+
     elif empir == 'extra':
         n, d = X.shape
         n_extra, d_extra = X_extra.shape
         assert X_extra is not None, 'need to provide extra data'
         assert d_extra == d, 'extra_data needs to have the same dimension as X'
         return np.linalg.inv( (X.T.dot(X) + X_extra.T.dot(X_extra)) / (n + n_extra) + mu*np.eye(d) )
-    
+
     elif empir == 'test':
         n, d = X.shape
         n_test, d_test = X_test.shape
@@ -282,7 +205,7 @@ def generate_c_inv_empir(X, empir, alpha=0.25, mu = 0.1, geno_tol = 1e-6, X_extr
 
     elif empir == 'test_duplicate_noise':
 
-        # in the case where n_test is small (e.g. n_test = 1) how about making copies of x_test 
+        # in the case where n_test is small (e.g. n_test = 1) how about making copies of x_test
         # and adding a little bit of noise to these copies, to make a larger matrix X_test.
         # How would this perform?
         pass
@@ -297,7 +220,7 @@ def generate_c_inv_empir(X, empir, alpha=0.25, mu = 0.1, geno_tol = 1e-6, X_extr
         C_init = initialize_C(cov_empir = X.T.dot(X)/n, e_1=0.1, e_2=0.5, ro=0.2)
         _, C = var_solve(B = B, X=X, CInit = C_init, np=np, geno_tol=geno_tol)
         c_inv_e = C.dot(C.T)
-        
+
     else:
         raise AssertionError('specify regime of empirical approximation')
 
@@ -312,48 +235,11 @@ def initialize_C(cov_empir, e_1=0.1, e_2=0.5, ro=0.2):
                                                                 regime='autoregressive',
                                                                 d=d,
                                                                 )
-    return C_init                                                                
+    return C_init
 
-
-def generate_centered_linear_gaussian_data(w_star, c, n=200, d=600, sigma2=1, fix_norm_of_x=False):
-    assert len(w_star) == d, 'dimensions error'
-
-    # generate features
-    X = np.zeros((n, d))
-
-    X = np.random.multivariate_normal(mean=np.zeros(d), cov=c, size=n)
-
-    if fix_norm_of_x:
-        X = X * np.sqrt(d) / np.linalg.norm(X, axis=1)[:, None]
-
-    # print warning if X is not on the sphere
-    if any(abs(np.linalg.norm(X, axis=1) - np.sqrt(d)) > 1e-5):
-        warnings.warn('Warning, norms of datapoints are not sqrt(d)')
-
-    # generate_noise
-    xi = np.random.multivariate_normal(np.zeros(n), sigma2 * np.eye(n))
-
-    # generate response
-    y = X.dot(w_star) + xi
-
-    return X, y, xi
-
-
-def generate_centered_quadratic_gaussian_data(W_star, w_star, c, n=200, d=600, sigma2=1):
-    assert W_star.shape == (d, d), 'dimensions error'
-
-    # generate features
-    X = np.random.multivariate_normal(mean=np.zeros(d), cov=c, size=n)
-
-    # generate_noise
-    xi = np.random.multivariate_normal(np.zeros(n), sigma2 * np.eye(n))
-
-    # generate response
-    y = (X.dot(W_star)*X).sum(axis=1) + X.dot(w_star) + xi  # equivalent to np.array([X[i].T.dot(W_star.dot(X[i]))
-    # for i in range(n)]) + X.dot(w_star) + xi
-
-    return X, y, xi
-
+###
+### Model gradient functions
+###
 
 def flatten_params(parameters):
     """
@@ -387,9 +273,33 @@ def recover_flattened(flat_params, indices, model):
         l[i] = l[i].view(*p.shape)
     return l
 
+def model_gradients(model, x):
+    """Computes model gradients -- used for computing NTK features"""
+    grad_list = []
+    num_examples = len(x)
+
+    grad_tensor = torch.tensor([])
+    for example in x:
+        # For each example, compute the gradient
+        example_grad_tensor = torch.tensor([] * num_examples)
+        output = model(example)
+        gradient = torch.autograd.grad(output, model.parameters(), retain_graph=True)
+        # TODO: add GPU support (move from GPU to CPU)
+        for i in range(len(gradient)):
+            example_grad_tensor = torch.cat((example_grad_tensor, gradient[i].reshape(-1)))
+
+        # Add example gradients to grad_tensor
+        if grad_tensor.nelement()==0:
+            grad_tensor = example_grad_tensor.clone().detach().reshape(1, -1)
+        else:
+            grad_tensor = torch.cat((grad_tensor, example_grad_tensor.reshape(1, -1)))
+
+    return grad_tensor
+
 
 def model_gradients_using_direct_computation(y, model):
-    param_grads = [param_gradient(y, param) for param in model.parameters()]
+    """Computes model gradients -- used in precond2.py"""
+    param_grads = [param_gradient(y, param)[0] for param in model.parameters()]
 
     return torch.cat([grad.view(-1) for grad in param_grads]).view(-1, 1)
 
@@ -404,6 +314,7 @@ def get_jacobian(net, x, noutputs):
 
 
 def model_gradients_using_backprop(model, x):
+    """Computes model gradients -- used in precond.py"""
     model.zero_grad()
     get_jacobian(model, x, noutputs=model.out_dim)
     grads = torch.cat([param.grad.view(-1) for param in model.parameters()]).view(-1, 1).detach()
@@ -438,6 +349,9 @@ def model_gradients_using_batched_backprop(model, x):
     model.zero_grad()
     return grads
 
+###
+### Models for training
+###
 
 class SLP(nn.Module):
         """ Single Layer Perceptron for regression. """
@@ -462,18 +376,16 @@ class SLP(nn.Module):
 class MLP(nn.Module):
     """ Single Layer Perceptron for regression. """
 
-    def __init__(self, in_channels, num_layers=2, hidden_channels=100):
+    def __init__(self, in_channels, num_layers=2, hidden_channels=100, std=1.):
         super().__init__()
-        self.in_layer = nn.Linear(in_channels, hidden_channels)
-        self.hidden_channels = hidden_channels
+        self.in_layer = nn.Linear(in_channels, hidden_channels, bias=False)
         self.hidden_layers = nn.ModuleList([
             nn.Linear(hidden_channels, hidden_channels)
             for _ in range(num_layers - 2)
         ])
         self.output_layer = nn.Linear(hidden_channels, 1, bias=False)
         self.out_dim = 1
-
-        self.init_params(sigma_w=1, sigma_b=1)
+        self.std = std
 
     def forward(self, x):
         """ Forward pass of the MLP. """
@@ -495,3 +407,28 @@ class MLP(nn.Module):
             layer.weight.data.normal_(0, tmp)
             layer.bias.data.normal_(0, sigma_b)
         self.output_layer.weight.data.normal_(0, tmp)
+
+
+class LinearizedModel(nn.Module):
+    """Linear model for use with linearized models"""
+
+    def __init__(self, model):
+        super().__init__()
+
+        # Count the number of parameters in the model
+        self.num_params = 0
+        for param in model.parameters():
+            self.num_params += np.prod(param.size())
+        self.out_dim = model.out_dim
+
+        self.linear = nn.Linear(self.num_params, self.out_dim)
+
+        self.reset_parameters()
+
+    def forward(self, x):
+        x = self.linear(x)
+        return x
+
+    def reset_parameters(self):
+        # Set parameters to 0 at initialization
+        torch.nn.init.constant_(self.linear.weight, 0)

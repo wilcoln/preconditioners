@@ -1,4 +1,3 @@
-
 import haiku as hk
 import jax
 import jax.numpy as jnp
@@ -63,13 +62,8 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=1
     rng, key = jax.random.split(rng)
     opt_state = optimizer.init(params, key, (dummy_xs, dummy_ys))
 
-    current_loss = float('inf')
-    epoch = 0
-    # stop if 5 consecutive epochs have no improvement
-    no_improvement_counter = 0
-    condition = None
-
-    while not condition:
+    # Training loop
+    for epoch in range(1, 1 + NUM_EPOCHS):
         rng, key = jax.random.split(rng)
         previous_loss = current_loss
         params, opt_state, stats = optimizer.step(params, opt_state, key, batch=input_dataset, momentum=0.0,

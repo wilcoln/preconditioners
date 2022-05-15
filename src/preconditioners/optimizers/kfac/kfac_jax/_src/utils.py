@@ -30,8 +30,6 @@ from jax.scipy import linalg
 from sklearn.covariance import graphical_lasso
 import numpy as np
 
-import settings
-
 _CHEX_SCALAR_TYPES = (float, int)
 
 # Types for annotation
@@ -603,10 +601,7 @@ def psd_inv_cholesky(matrix: chex.Array, damping: chex.Array) -> chex.Array:
         raise ValueError(f"Expected square matrix, but got shape {matrix.shape}.")
     identity = jnp.eye(matrix.shape[0])
 
-    if not settings.USE_GRAPHICAL_LASSO:
-        return linalg.solve(matrix + damping * identity, identity, sym_pos=True)
-    else:
-        return jnp.asarray(graphical_lasso(np.asarray(matrix), .01)[0])
+    return linalg.solve(matrix + damping * identity, identity, sym_pos=True)
 
 
 def pi_adjusted_inverse(

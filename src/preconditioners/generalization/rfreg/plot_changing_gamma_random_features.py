@@ -5,6 +5,7 @@ import scipy.linalg as sc
 import os, json
 
 from preconditioners.utils import *
+from preconditioners.datasets import *
 from preconditioners.paths import plots_dir
 from preconditioners.generalization.linreg.Regressor import LinearRegressor, RandomFeaturesRegressor
 from datetime import datetime as dt

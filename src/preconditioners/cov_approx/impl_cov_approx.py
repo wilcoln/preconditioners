@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import scipy
 
-from preconditioners.utils import generate_c, generate_centered_linear_gaussian_data
+from preconditioners.datasets import generate_c, generate_centered_linear_gaussian_data
 
 
 def log_lik(cov_inv, cov_empir):
@@ -12,14 +12,14 @@ def log_lik(cov_inv, cov_empir):
 
 
 def regul(cov_inv, X):
-    # use the 1/||(I - X^T(XX^T)^-1X)cov_invX^T ||_{Tr}^2 regularization because 
+    # use the 1/||(I - X^T(XX^T)^-1X)cov_invX^T ||_{Tr}^2 regularization because
     # this function is convex in cov_inv
     temp_1 = (np.eye(X.shape[1]) - X.T.dot(np.linalg.inv(X.dot(X.T))).dot(X))
     temp_2 = temp_1.dot(cov_inv.dot(X.T))
     return 1 / np.trace(temp_2.dot(temp_2.T))
 
 # try adding extra regularization so that np.linalg.det(cov_inv) does not go to infinity. For exmple
-# 1/1/log(det(cov_inv))+1 (you know what I mean )    
+# 1/1/log(det(cov_inv))+1 (you know what I mean )
 
 def loss(cov_inv, X, cov_empir, regul_lambda):
     # subtracting the regularization term from the log-likelihood because we want to maximize the log-likelihood
@@ -50,4 +50,3 @@ def grad_loss(C, cov_empir, regul_lambda, X):
 
     # note there is a minus also inside grad_regul.
     return grad_log_lik(C, cov_empir) - regul_lambda * grad_regul(C, X, cov_empir)
-  

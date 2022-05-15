@@ -1,18 +1,20 @@
 import torch
 from torch.optim.optimizer import Optimizer
 
-from utils import model_gradients_using_backprop
+from preconditioners.utils import model_gradients_using_backprop
 
 
 class PrecondBase(Optimizer):
     """Implements preconditionned gradient descent"""
 
-    def __init__(self, model, lr, labeled_data, unlabeled_data, damping=1.0) -> None:
+    def __init__(self, model, lr, labeled_data, unlabeled_data, damping=1.0, verbose=True) -> None:
         defaults = dict(lr=lr, labeled_data=labeled_data, unlabeled_data=unlabeled_data, damping=damping)
         super(PrecondBase, self).__init__(model.parameters(), defaults)
 
         self.known_modules = {'Linear'}
         self.modules = []
+
+        self.verbose = verbose
 
         self.model = model
         self._prepare_model()
@@ -21,13 +23,14 @@ class PrecondBase(Optimizer):
 
     def _prepare_model(self):
         count = 0
-        # print(self.model)
-        # print("=> We keep the following layers in PrecondGD. ")
+        if self.verbose:
+            print("=> We keep the following layers in PrecondGD. ")
         for module in self.model.modules():
             classname = module.__class__.__name__
             if classname in self.known_modules:
                 self.modules.append(module)
-                # print('(%s): %s' % (count, module))
+                if self.verbose:
+                    print('(%s): %s' % (count, module))
                 count += 1
 
     @staticmethod
@@ -103,7 +106,7 @@ class PrecondBase(Optimizer):
             if m.bias is not None:
                 m.bias.grad.data.copy_(v[1])
 
-    def _step(self, p_inv):
+    def _step(self):
         for group in self.param_groups:
 
             for p in group['params']:
@@ -111,7 +114,7 @@ class PrecondBase(Optimizer):
                     continue
                 d_p = p.grad.data
 
-                p.data.add_(-group['lr'] * torch.norm(p_inv), d_p)
+                p.data.add_(-group['lr'], d_p)
 
     def step(self, closure=None):
         # FIXME(CW): temporal fix for compatibility with Official LR scheduler.
@@ -125,8 +128,11 @@ class PrecondBase(Optimizer):
             updates[m] = v
         self._update_grad(updates)
 
-        self._step(p_inv)
+        self._step()
         self.steps += 1
+
+    def _compute_fisher(self) -> torch.Tensor:
+        raise NotImplementedError
 
     def _compute_p_inv(self) -> torch.Tensor:
         raise NotImplementedError
