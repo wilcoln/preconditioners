@@ -1,3 +1,0 @@
-cov_matrix in a_oe computed using training_data (100) + extra_data (3000), and a_o using extra_data (3100). 
-Performance is the same. Shows, that the benefit in using training data in the previous experiment was probably 
-about the size of the data.

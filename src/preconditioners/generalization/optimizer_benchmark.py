@@ -343,7 +343,7 @@ if __name__ == '__main__':
 
     # Plot and Save mean test errors
     plot_and_save_results(test_errors, results_dir)
-=======
+
 # Fix parameters
 tol = 1e-3  # Eduard comment: This needs to be a lot smaller later on
 lr = 1e-3
