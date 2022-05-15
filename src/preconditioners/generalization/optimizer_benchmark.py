@@ -259,7 +259,7 @@ def create_results_dir_and_save_params():
     # Create folder name
     args_dict = vars(args)
     dtstamp = str(dt.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
-    folder_name = dtstamp + '_' + '_'.join([f'{k}={v}' for k, v in args_dict.items() if v])
+    folder_name = dtstamp
     results_dir = os.path.join(plots_dir, 'optimizer_benchmark', folder_name)
     
     # Create folder
@@ -346,9 +346,6 @@ if __name__ == '__main__':
     plot_and_save_results(test_errors, results_dir)
 
 # Fix parameters
-tol = 1e-3  # Eduard comment: This needs to be a lot smaller later on
-lr = 1e-3
-d = 10
 loss_function = torch.nn.MSELoss()
 # Eduard comment: We are interested in cases where num_params > train_size (not just d > train_size)
 # it is interesting that you found better generalization of NGD even if num_params <  train_size
@@ -420,7 +417,7 @@ if __name__ == '__main__':
                         # Instantiate the optimizer
                         optimizer = instantiate_optimizer(optim_cls, train_data, extra_data)
                         # Train the model
-                        train_loss = train(model, train_data, optimizer, loss_function, tol, max_iter, print_every=10)
+                        train_loss = train(model, train_data, optimizer, loss_function, args.tol, max_iter, print_every=10)
                         # Test the model
                         test_loss = test(model, test_data, loss_function)
                         test_loss = test_loss if (test_loss < threshold or not threshold) else float('nan')
@@ -433,23 +430,7 @@ if __name__ == '__main__':
 
         # make dir, save plot and params
 
-        # Create dictionary with all the parameters
-        params_dict = {
-            'tol': tol,
-            'lr': lr,
-            'extra_size': extra_size,
-            'd': d,
-            'num_params': num_params,
-            'train_size': train_size,
-            'test_size': test_size,
-            'loss_function': str(loss_function),
-            'num_runs': args.num_runs,
-            'num_layers': num_layers,
-            'max_iter': max_iter,
-            'test_train_ratio': args.test_train_ratio,
-            'r2': r2,
-            'ro': ro,
-        }
+        params_dict = vars(args)
 
         # Create folder name
         dtstamp = str(dt.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
