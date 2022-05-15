@@ -29,8 +29,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--num_layers', help='Number of layers', default=3, type=int)
 parser.add_argument('--num_runs', help='Number of runs', default=1, type=int)
 parser.add_argument('--max_iter', help='Max epochs', default=float('inf'), type=int)
+parser.add_argument('--max_var', help='Max var', default=10, type=int)
 parser.add_argument('--test_train_ratio', help='Test train ratio', default=1, type=int)
-parser.add_argument('--extra_train_ratio', help='Extra train ratio', type=int)
+parser.add_argument('--extra_train_ratio', help='Extra train ratio', default=1, type=int)
 parser.add_argument('--test_loss_threshold', help='Test loss threshold', type=float)
 parser.add_argument('--train_size', help='Train size', default=10, type=int)
 parser.add_argument('--results_dir', help='Folder path', type=str)
@@ -50,6 +51,7 @@ assert args.num_layers >= 2, 'Number of layers must be at least 2'
 assert args.num_runs >= 1, 'Number of runs must be at least 1'
 assert args.max_iter >= 1, 'Max epochs must be at least 1'
 assert args.test_train_ratio >= 1, 'Test train ratio must be at least 1'
+assert args.extra_train_ratio >= 1, 'Extra train ratio must be at least 1'
 assert args.train_size >= 1, 'Train size must be at least 1'
 assert args.width >= 1, 'Hidden channels must be at least 1'
 assert args.damping >= 0, 'Damping must be at least 0'
@@ -65,12 +67,12 @@ assert args.print_every >= 1, 'Print every must be at least 1'
 # region Fixed & Derived variables
 # Fixed
 loss_function = torch.nn.MSELoss()
-noise_variances = np.linspace(1, 10, 20)
+noise_variances = np.linspace(0, args.max_var, 20)
 optimizer_classes = [Kfac, GradientDescent, PrecondGD]
 
 # Derived
 num_params = (1 + args.d) * args.width + (args.width ** 2) * (args.num_layers - 2)
-extra_size = args.extra_train_ratio * args.train_size if args.extra_train_ratio else 2 * num_params
+extra_size = max(args.extra_train_ratio * args.train_size, 2 * num_params)
 test_size = args.test_train_ratio * args.train_size
 model = MLP(in_channels=args.d, num_layers=args.num_layers, hidden_channels=args.width).double().to(settings.DEVICE)
 # endregion
