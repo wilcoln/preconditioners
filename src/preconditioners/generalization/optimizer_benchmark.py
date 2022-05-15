@@ -48,6 +48,7 @@ parser.add_argument('--lr', help='lr', type=float, default=1e-3)
 parser.add_argument('--ro', help='ro', type=float, default=.5)
 parser.add_argument('--r2', help='r2', type=float, default=1)
 parser.add_argument('--d', help='d', type=float, default=10)
+parser.add_argument('--use_init_fisher', action='store_true')
 parser.add_argument('--print_every', help='print_every', type=int, default=100)
 args = parser.parse_args()
 # endregion
@@ -90,7 +91,7 @@ def instantiate_optimizer(optimizer_class, train_data, extra_data):
         labeled_data = train_data[:][0].double().to(settings.DEVICE)
         unlabeled_data = extra_data[:][0].double().to(settings.DEVICE)
         return optimizer_class(model, lr=args.lr, labeled_data=labeled_data, unlabeled_data=unlabeled_data,
-                               damping=args.damping)
+                               damping=args.damping, is_linear=args.use_init_fisher)
     elif optimizer_class == GradientDescent:
         return GradientDescent(model.parameters(), lr=args.lr)
 
