@@ -8,7 +8,7 @@ from . import kfac_jax
 L2_REG = 0
 
 
-def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=10):
+def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=10, stagnation_threshold=1e-6, stagnation_count_max=5):
     model_logs = {'condition': None, 'losses': []}
 
     def model_fn(x):
@@ -84,8 +84,8 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=1
 
         # Update condition
         delta_loss = current_loss - previous_loss
-        no_improvement_counter += 1 if jnp.abs(delta_loss) < 1e-6 else 0
-        if no_improvement_counter > 5:  # stagnation
+        no_improvement_counter += 1 if jnp.abs(delta_loss) < stagnation_threshold else 0
+        if no_improvement_counter > stagnation_count_max:  # stagnation
             condition = 'stagnation'
         elif current_loss <= tol:
             condition = 'tol'

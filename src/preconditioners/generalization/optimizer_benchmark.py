@@ -32,19 +32,23 @@ import warnings
 
 # region CLI provided parameters
 parser = argparse.ArgumentParser()
-parser.add_argument('--num_layers', help='Number of layers', default=3, type=int)
 parser.add_argument('--num_runs', help='Number of runs', default=1, type=int)
 parser.add_argument('--max_iter', help='Max epochs', default=float('inf'), type=int)
 parser.add_argument('--max_var', help='Max var', default=10, type=int)
+parser.add_argument('--results_dir', help='Folder path', type=str)
+# Dataset size
 parser.add_argument('--test_train_ratio', help='Test train ratio', default=1, type=int)
 parser.add_argument('--extra_train_ratio', help='Extra train ratio', default=1, type=int)
-parser.add_argument('--test_loss_threshold', help='Test loss threshold', type=float)
 parser.add_argument('--train_size', help='Train size', default=10, type=int)
-parser.add_argument('--results_dir', help='Folder path', type=str)
+# Model/opt parameters
+parser.add_argument('--num_layers', help='Number of layers', default=3, type=int)
 parser.add_argument('--width', help='Hidden channels', type=int)
 parser.add_argument('--damping', help='damping', type=float, default=1.0)
 parser.add_argument('--tol', help='tol', type=float, default=1e-3)
 parser.add_argument('--lr', help='lr', type=float, default=1e-3)
+parser.add_argument('--stagnation_threshold', help='Maximum change in loss that counts as no progress', type=float, default=1e-6)
+parser.add_argument('--stagnation_count_max', help='Maximum number of iterations of no progress before the experiment terminates', type=int, default=5)
+# Data parameters
 parser.add_argument('--ro', help='ro', type=float, default=.5)
 parser.add_argument('--r2', help='r2', type=float, default=1)
 parser.add_argument('--d', help='d', type=float, default=10)
@@ -144,8 +148,8 @@ def train(model, train_data, optimizer, loss_function, tol, max_iter=float('inf'
 
         # Update condition
         delta_loss = current_loss - previous_loss
-        no_improvement_counter += 1 if np.abs(delta_loss) < 1e-6 else 0
-        if no_improvement_counter > 5:  # stagnation
+        no_improvement_counter += 1 if np.abs(delta_loss) < args.stagnation_threshold else 0
+        if no_improvement_counter > args.stagnation_count_max:  # stagnation
             condition = 'stagnation'
         elif current_loss <= tol:
             condition = 'tol'
@@ -325,10 +329,6 @@ if __name__ == '__main__':
                     test_loss = test(model, test_data, loss_function)
                     model.reset_parameters()
 
-                # The following line is to discard outliers w.r.t. to a given threshold
-                # To deactivate, just don't set the threshold
-                test_loss = float('nan') if (args.test_loss_threshold and test_loss > args.test_loss_threshold) else test_loss
-
                 model_logs['test_loss'] = test_loss
                 save_model_logs(model_logs, results_dir, model_name)
 
@@ -387,8 +387,6 @@ ro = 0.5
 noise_variances = np.linspace(1, 10, 20)
 optimizer_classes = [GradientDescent, PrecondGD, Kfac]
 
-threshold = args.test_loss_threshold if args.test_loss_threshold else 0
-
 if __name__ == '__main__':
     if args.folder_path:
         folder_path = args.folder_path
@@ -396,7 +394,6 @@ if __name__ == '__main__':
         # replace values larger than threshold with nans
         for optim_cls, test_losses in test_errors.items():
             test_losses = np.array(test_losses)
-            test_losses[test_losses > threshold] = np.nan
             test_errors[optim_cls] = test_losses.tolist()
         save_results(test_errors, folder_path)
     else:
@@ -411,7 +408,8 @@ if __name__ == '__main__':
                     print(f'\n\nOptimizer: {optim_cls.__name__}')
                     if optim_cls.__name__ == 'Kfac':
                         mlp_output_sizes = ([width] * (num_layers - 1) if num_layers > 1 else []) + [1]
-                        train_loss, hk_model, params = kfac_train(train_data, mlp_output_sizes, max_iter, args.damping)
+                        train_loss, hk_model, params = kfac_train(train_data, mlp_output_sizes, max_iter, args.damping,
+                                stagnation_threshold=args.stagnation_threshold, stagnation_count_max=args.stagnation_count_max)
                         test_loss = kfac_test(hk_model, params, test_data)
                     else:
                         # Instantiate the optimizer
@@ -420,7 +418,6 @@ if __name__ == '__main__':
                         train_loss = train(model, train_data, optimizer, loss_function, args.tol, max_iter, print_every=10)
                         # Test the model
                         test_loss = test(model, test_data, loss_function)
-                        test_loss = test_loss if (test_loss < threshold or not threshold) else float('nan')
                         model.reset_parameters()
 
                     run_test_errors[optim_cls.__name__].append(test_loss)
