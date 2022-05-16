@@ -2,7 +2,6 @@ import torch
 
 from preconditioners.optimizers.precond_base import PrecondBase
 from preconditioners.utils import model_gradients_using_backprop
-from preconditioners.settings import DEVICE
 
 
 class PrecondGD(PrecondBase):
@@ -15,22 +14,30 @@ class PrecondGD(PrecondBase):
 
     def _compute_fisher(self) -> torch.Tensor:
         group = self.param_groups[0]
+
+        labeled_data = group['labeled_data']
         unlabeled_data = group['unlabeled_data']
 
         # Compute the gradient of the output on the labeled and unlabeled data w.r.t the model parameters
         p = 0
+        if isinstance(labeled_data, torch.Tensor):
+            labeled_data = torch.unbind(labeled_data)
         if isinstance(unlabeled_data, torch.Tensor):
-            unlabeled_data = torch.unbind(unlabeled_data)
+            labeled_data = torch.unbind(unlabeled_data)
 
         # TODO: deadline hack, fix this
         size = 0
+        for x in labeled_data:
+            grad = model_gradients_using_backprop(self.model, x).detach()
+            p += grad @ grad.T
+            size += 1
         for x in unlabeled_data:
             grad = model_gradients_using_backprop(self.model, x).detach()
             p += grad @ grad.T
             size += 1
 
         # Compute the inverse of the fisher information matrix
-        p /= size
+        p *= 1 / size
 
         return p
 
@@ -46,7 +53,7 @@ class PrecondGD(PrecondBase):
         p = self._compute_fisher()
 
         # add damping to avoid division by zero
-        p += torch.eye(p.shape[0], device=DEVICE) * group['damping']
+        p += torch.eye(p.shape[0]) * group['damping']
         p_inv = torch.cholesky_inverse(p)
 
         if self.is_linear:

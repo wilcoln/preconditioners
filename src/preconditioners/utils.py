@@ -399,11 +399,8 @@ class MLP(nn.Module):
         x = self.output_layer(x)
         return x
 
-    def reset_parameters(self, init_state=None):
-        if init_state is None:
-            self.init_params(sigma_w=1, sigma_b=1)
-        else:
-            self.load_state_dict(init_state)
+    def reset_parameters(self):
+        self.init_params(sigma_w=1, sigma_b=1)
 
     def init_params(self, sigma_w, sigma_b):
         tmp = sigma_w / np.sqrt(self.hidden_channels)

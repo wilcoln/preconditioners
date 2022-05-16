@@ -8,7 +8,6 @@ import os
 import json
 import pickle
 from collections import defaultdict
-from copy import deepcopy
 
 import numpy as np
 import torch
@@ -103,14 +102,16 @@ def train(model, train_data, optimizer, loss_function, args):
     condition = None
     stag_loss = float('inf')
 
-    # Get and prepare inputs
-    inputs, targets = train_data[:]
-    # Set the inputs and targets to the device
-    inputs, targets = inputs.double().to(settings.DEVICE), targets.double().to(settings.DEVICE)
-    targets = targets.reshape((targets.shape[0], 1))
-
     while not condition:
         model.train()
+
+        previous_model_state = model.state_dict()
+
+        # Get and prepare inputs
+        inputs, targets = train_data[:]
+        # Set the inputs and targets to the device
+        inputs, targets = inputs.double().to(settings.DEVICE), targets.double().to(settings.DEVICE)
+        targets = targets.reshape((targets.shape[0], 1))
 
         # Zero the gradients
         optimizer.zero_grad()
@@ -142,7 +143,6 @@ def train(model, train_data, optimizer, loss_function, args):
                 no_improvement_counter += 1
                 stag_loss = min(stag_loss, current_loss)
             else:
-                no_improvement_counter = 0
                 stag_loss = current_loss
 
 
@@ -184,10 +184,10 @@ def generate_linear_params(args):
     return w_star, c
 
 
-def generate_quadratic_params(args, rng):
-    w_star = generate_true_parameter(args.d, args.r2, m=np.eye(args.d), rng=rng)
-    W_star = generate_W_star(args.d, args.r2, rng=rng)
-    c = generate_c(args.ro, regime='autoregressive', d=args.d, rng=rng)
+def generate_quadratic_params(args):
+    w_star = generate_true_parameter(args.d, args.r2, m=np.eye(args.d))
+    W_star = generate_W_star(args.d, args.r2)
+    c = generate_c(args.ro, regime='autoregressive', d=args.d)
     return W_star, w_star, c
 
 
@@ -207,7 +207,7 @@ def save_model_logs(model_logs, results_dir, model_name):
         pickle.dump(model_logs, f)
 
 
-def plot_and_save_results(test_errors, results_dir, save_test_error=True, final_plot=False):
+def plot_and_save_results(test_errors, results_dir):
     # Compute mean test errors
     mean_test_errors = defaultdict(list)
     for optim_cls, test_losses in test_errors.items():
@@ -224,17 +224,11 @@ def plot_and_save_results(test_errors, results_dir, save_test_error=True, final_
         plt.legend([optim_cls.__name__ for optim_cls in OPTIMIZER_CLASSES])
 
     # Save figure
-    dtstamp = str(dt.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
-    if final_plot:
-        plot_location = os.path.join(results_dir, 'plot_' + dtstamp + '.pdf')
-    else:
-        plot_location = os.path.join(results_dir, 'plots', 'plot_' + dtstamp + '.pdf')
-    plt.savefig(plot_location, format='pdf')
+    plt.savefig(os.path.join(results_dir, 'plot.pdf'), format='pdf')
 
     # Save all test_errors
-    if save_test_error:
-        with open(os.path.join(results_dir, 'test_errors.pkl'), 'wb') as f:
-            pickle.dump(test_errors, f)
+    with open(os.path.join(results_dir, 'test_errors.pkl'), 'wb') as f:
+        pickle.dump(test_errors, f)
     # Save mean_test_errors
     with open(os.path.join(results_dir, 'mean_test_errors.pkl'), 'wb') as f:
         pickle.dump(mean_test_errors, f)
@@ -242,21 +236,17 @@ def plot_and_save_results(test_errors, results_dir, save_test_error=True, final_
     # Print path to results
     print(f'Results saved to {results_dir}')
 
-    if final_plot:
-        plt.show()
-    else:
-        plt.clf()
+    plt.show()
 
 def create_results_dir_and_save_params(params_dict):
     # Create folder name
     dtstamp = str(dt.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
     folder_name = dtstamp
-    results_dir = os.path.join(plots_dir, 'optimizer_benchmark_' + dtstamp)
+    results_dir = os.path.join(plots_dir, 'optimizer_benchmark', folder_name)
 
     # Create folder
     os.makedirs(results_dir)
     os.makedirs(os.path.join(results_dir, 'model_logs'))
-    os.makedirs(os.path.join(results_dir, 'plots'))
 
     # Save params
     with open(os.path.join(results_dir, 'params.json'), 'w') as f:
@@ -273,7 +263,6 @@ if __name__ == '__main__':
     noise_variances = np.linspace(args.min_variance, args.max_variance, args.num_plot_points)
     num_params = (1 + args.d) * args.width + (args.width ** 2) * (args.num_layers - 2)
     model = MLP(in_channels=args.d, num_layers=args.num_layers, hidden_channels=args.width).double().to(settings.DEVICE)
-    init_model_state = deepcopy(model.state_dict())
     # endregion
 
     # Create results dir and save params
@@ -283,13 +272,13 @@ if __name__ == '__main__':
     test_errors = defaultdict(list)
 
     # Generate true parameters
-    rng = np.random.RandomState(404)
-    W_star, w_star, c = generate_quadratic_params(args, rng)
+    W_star, w_star, c = generate_quadratic_params(args)
 
     extra_data = CenteredQuadraticGaussianDataset(
-        W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.extra_size, sigma2=1, rng=rng)
+        W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.extra_size, sigma2=1)
 
     inv_fisher_cache = None
+    # inv_fisher_norm_cache = None
 
     # Set progress bar
     pbar = tqdm(total=args.num_runs * len(OPTIMIZER_CLASSES) * len(noise_variances))
@@ -300,9 +289,9 @@ if __name__ == '__main__':
 
     # Run experiments
     for num_run in range(1, 1 + args.num_runs):
+        print(f'\n\nRun NÂ°: {num_run}')
         run_test_errors = defaultdict(list)
         for sigma2 in noise_variances:
-            print(f'\n\nRun N°: {num_run}')
             print(f'\n\nNoise variance: {sigma2}')
 
             # Generate data
@@ -326,6 +315,7 @@ if __name__ == '__main__':
                     test_loss = kfac_test(hk_model, params, test_data)
                 else:
                     # Instantiate the optimizer
+                    # lr = args.lr / inv_fisher_norm_cache if inv_fisher_norm_cache is not None else args.lr
                     optimizer = instantiate_optimizer(optim_cls, train_data,
                         extra_data, lr=args.lr, gd_lr=args.gd_lr,
                         damping=args.damping, use_init_fisher=args.use_init_fisher)
@@ -336,18 +326,18 @@ if __name__ == '__main__':
                             optimizer.last_p_inv = inv_fisher_cache
                         else:
                             inv_fisher_cache = optimizer._compute_p_inv()
+                            # inv_fisher_norm_cache = torch.norm(inv_fisher_cache, 'fro').item()
+                            # for g in optimizer.param_groups:
+                            #     g['lr'] = args.lr / inv_fisher_norm_cache
 
                     # Train
                     train_loss, model_logs = train(model, train_data, optimizer, LOSS_FUNCTION, args)
 
                     # Test
                     test_loss = test(model, test_data, LOSS_FUNCTION)
-                    model.reset_parameters(init_model_state)
+                    model.reset_parameters()
 
-
-                model_logs['sigma2'] = sigma2
                 model_logs['test_loss'] = test_loss
-                model_logs['optimizer'] = optim_cls.__name__
                 save_model_logs(model_logs, results_dir, model_name)
                 print(f"Test loss: {test_loss:4f}")
 
@@ -361,7 +351,5 @@ if __name__ == '__main__':
         for optim_cls, test_losses in run_test_errors.items():
             test_errors[optim_cls].append(test_losses)
 
-        # Plot and Save mean test errors
-        plot_and_save_results(test_errors, results_dir, save_test_error=False, final_plot=False)
-
-    plot_and_save_results(test_errors, results_dir, save_test_error=True, final_plot=True)
+    # Plot and Save mean test errors
+    plot_and_save_results(test_errors, results_dir)
