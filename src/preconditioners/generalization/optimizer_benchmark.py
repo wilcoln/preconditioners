@@ -240,7 +240,7 @@ def create_results_dir_and_save_params(params_dict):
     # Create folder name
     dtstamp = str(dt.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
     folder_name = dtstamp
-    results_dir = os.path.join(plots_dir, 'optimizer_benchmark_' + dt_stamp)
+    results_dir = os.path.join(plots_dir, 'optimizer_benchmark_' + dtstamp)
 
     # Create folder
     os.makedirs(results_dir)
