@@ -41,9 +41,9 @@ def get_args():
     parser.add_argument('--num_plot_points', help='Number of plot points', default=10, type=int)
     parser.add_argument('--results_dir', help='Folder path', type=str)
     # Dataset size
-    parser.add_argument('--test_train_ratio', help='Test train ratio', default=1, type=int)
-    parser.add_argument('--extra_train_ratio', help='Extra train ratio', default=1, type=int)
-    parser.add_argument('--train_size', help='Train size', default=10, type=int)
+    parser.add_argument('--train_size', help='Train size', default=128, type=int)
+    parser.add_argument('--test_size', help='Test size', default=128, type=int)
+    parser.add_argument('--extra_size', help='Extra size', default=128, type=int)
     # Model/opt parameters
     parser.add_argument('--num_layers', help='Number of layers', default=3, type=int)
     parser.add_argument('--width', help='Hidden channels', type=int, default=8)
@@ -51,7 +51,7 @@ def get_args():
     parser.add_argument('--tol', help='tol', type=float, default=1e-3)
     parser.add_argument('--lr', help='lr', type=float, default=1e-3)
     parser.add_argument('--gd_lr', help='gd lr', type=float, default=None)
-    parser.add_argument('--stagnation_threshold', help='Maximum change in loss that counts as no progress', type=float, default=1e-6)
+    parser.add_argument('--stagnation_threshold', help='Maximum change in loss that counts as no progress', type=float, default=1)
     parser.add_argument('--stagnation_count_max', help='Maximum number of iterations of no progress before the experiment terminates', type=int, default=5)
     # Data parameters
     parser.add_argument('--ro', help='ro', type=float, default=.5)
@@ -66,8 +66,8 @@ def get_args():
     assert args.num_layers >= 2, 'Number of layers must be at least 2'
     assert args.num_runs >= 1, 'Number of runs must be at least 1'
     assert args.max_iter >= 1, 'Max epochs must be at least 1'
-    assert args.test_train_ratio >= 1, 'Test train ratio must be at least 1'
-    assert args.extra_train_ratio >= 1, 'Extra train ratio must be at least 1'
+    assert args.test_size >= 1, 'Test train ratio must be at least 1'
+    assert args.extra_size >= 1, 'Extra train ratio must be at least 1'
     assert args.train_size >= 1, 'Train size must be at least 1'
     assert args.width >= 1, 'Hidden channels must be at least 1'
     assert args.damping >= 0, 'Damping must be at least 0'
@@ -100,11 +100,11 @@ def train(model, train_data, optimizer, loss_function, args):
     # stop if 5 consecutive epochs have no improvement
     no_improvement_counter = 0
     condition = None
+    previous_loss = float('inf')
 
     while not condition:
         model.train()
 
-        previous_loss = current_loss
         previous_model_state = model.state_dict()
 
         # Get and prepare inputs
@@ -128,26 +128,29 @@ def train(model, train_data, optimizer, loss_function, args):
         # Perform optimization
         optimizer.step()
 
-        # Update statistics
-        current_loss = loss.item()
-
         epoch += 1
 
         # Print statistics
         if epoch == 1 or epoch % args.print_every == 0:
+            # Update statistics
+            current_loss = loss.item()
+
             print(f'Epoch {epoch}: Train loss: {current_loss:.4f}')
 
-        # Update condition
-        delta_loss = current_loss - previous_loss
-        no_improvement_counter += 1 if np.abs(delta_loss) < args.stagnation_threshold else 0
-        if no_improvement_counter > args.stagnation_count_max:  # stagnation
-            condition = 'stagnation'
-        elif current_loss <= args.tol:
-            condition = 'tol'
-        elif epoch >= args.max_iter:
-            condition = 'max_iter'
+            # Update condition
+            delta_loss = previous_loss -current_loss
+            if abs(delta_loss) < args.stagnation_threshold * args.lr * args.print_every:
+                no_improvement_counter += 1
+            if no_improvement_counter > args.stagnation_count_max:  # stagnation
+                condition = 'stagnation'
+            elif current_loss <= args.tol:
+                condition = 'tol'
+            elif epoch >= args.max_iter:
+                condition = 'max_iter'
 
         model_logs['losses'].append(current_loss)
+
+        previous_loss = current_loss
 
     # Final print
     print('*** FINAL EPOCH ***')
@@ -256,8 +259,6 @@ if __name__ == '__main__':
     args = get_args()
     noise_variances = np.linspace(args.min_variance, args.max_variance, args.num_plot_points)
     num_params = (1 + args.d) * args.width + (args.width ** 2) * (args.num_layers - 2)
-    extra_size = max(args.extra_train_ratio * args.train_size, 2 * num_params)
-    test_size = args.test_train_ratio * args.train_size
     model = MLP(in_channels=args.d, num_layers=args.num_layers, hidden_channels=args.width).double().to(settings.DEVICE)
     # endregion
 
@@ -271,7 +272,7 @@ if __name__ == '__main__':
     W_star, w_star, c = generate_quadratic_params(args)
 
     extra_data = CenteredQuadraticGaussianDataset(
-        W_star=W_star, w_star=w_star, d=args.d, c=c, n=extra_size, sigma2=1)
+        W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.extra_size, sigma2=1)
 
     inv_fisher_cache = None
 
@@ -291,8 +292,8 @@ if __name__ == '__main__':
 
             # Generate data
             dataset = CenteredQuadraticGaussianDataset(
-                W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.train_size + test_size, sigma2=sigma2)
-            train_data, test_data = random_split(dataset, [args.train_size, test_size])
+                W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.train_size + args.test_size, sigma2=sigma2)
+            train_data, test_data = random_split(dataset, [args.train_size, args.test_size])
 
             for optim_cls in OPTIMIZER_CLASSES:
                 # For each optimizer
