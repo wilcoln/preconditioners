@@ -29,7 +29,7 @@ import warnings
 
 # Fixed
 LOSS_FUNCTION = torch.nn.MSELoss()
-OPTIMIZER_CLASSES = [Kfac, GradientDescent, PrecondGD]
+OPTIMIZER_CLASSES = [PrecondGD, Kfac, GradientDescent]
 
 def get_args():
     # CLI provided parameters
@@ -100,7 +100,7 @@ def train(model, train_data, optimizer, loss_function, args):
     # stop if 5 consecutive epochs have no improvement
     no_improvement_counter = 0
     condition = None
-    previous_loss = float('inf')
+    stag_loss = float('inf')
 
     while not condition:
         model.train()
@@ -138,9 +138,14 @@ def train(model, train_data, optimizer, loss_function, args):
             print(f'Epoch {epoch}: Train loss: {current_loss:.4f}')
 
             # Update condition
-            delta_loss = previous_loss -current_loss
-            if abs(delta_loss) < args.stagnation_threshold * args.print_every:
+            delta_loss = stag_loss - current_loss
+            if delta_loss < args.stagnation_threshold:
                 no_improvement_counter += 1
+                stag_loss = min(stag_loss, current_loss)
+            else:
+                stag_loss = current_loss
+
+
             if no_improvement_counter > args.stagnation_count_max:  # stagnation
                 condition = 'stagnation'
             elif current_loss <= args.tol:
@@ -148,9 +153,7 @@ def train(model, train_data, optimizer, loss_function, args):
             elif epoch >= args.max_iter:
                 condition = 'max_iter'
 
-        model_logs['losses'].append(current_loss)
-
-        previous_loss = current_loss
+            model_logs['losses'].append(current_loss)
 
     # Final print
     print('*** FINAL EPOCH ***')
@@ -275,6 +278,7 @@ if __name__ == '__main__':
         W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.extra_size, sigma2=1)
 
     inv_fisher_cache = None
+    # inv_fisher_norm_cache = None
 
     # Set progress bar
     pbar = tqdm(total=args.num_runs * len(OPTIMIZER_CLASSES) * len(noise_variances))
@@ -311,20 +315,23 @@ if __name__ == '__main__':
                     test_loss = kfac_test(hk_model, params, test_data)
                 else:
                     # Instantiate the optimizer
+                    # lr = args.lr / inv_fisher_norm_cache if inv_fisher_norm_cache is not None else args.lr
                     optimizer = instantiate_optimizer(optim_cls, train_data,
                         extra_data, lr=args.lr, gd_lr=args.gd_lr,
                         damping=args.damping, use_init_fisher=args.use_init_fisher)
 
                     # For caching inverse fisher matrix
-                    if optim_cls == PrecondGD and args.use_init_fisher and inv_fisher_cache is not None:
-                        optimizer.last_p_inv = inv_fisher_cache
+                    if optim_cls == PrecondGD and args.use_init_fisher:
+                        if inv_fisher_cache is not None:
+                            optimizer.last_p_inv = inv_fisher_cache
+                        else:
+                            inv_fisher_cache = optimizer._compute_p_inv()
+                            # inv_fisher_norm_cache = torch.norm(inv_fisher_cache, 'fro').item()
+                            # for g in optimizer.param_groups:
+                            #     g['lr'] = args.lr / inv_fisher_norm_cache
 
                     # Train
                     train_loss, model_logs = train(model, train_data, optimizer, LOSS_FUNCTION, args)
-
-                    # For caching the inverse Fisher matrix
-                    if optim_cls == PrecondGD and args.use_init_fisher and inv_fisher_cache is None:
-                        inv_fisher_cache = optimizer.last_p_inv
 
                     # Test
                     test_loss = test(model, test_data, LOSS_FUNCTION)
