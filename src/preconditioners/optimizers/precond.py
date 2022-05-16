@@ -15,30 +15,22 @@ class PrecondGD(PrecondBase):
 
     def _compute_fisher(self) -> torch.Tensor:
         group = self.param_groups[0]
-
-        labeled_data = group['labeled_data']
         unlabeled_data = group['unlabeled_data']
 
         # Compute the gradient of the output on the labeled and unlabeled data w.r.t the model parameters
         p = 0
-        if isinstance(labeled_data, torch.Tensor):
-            labeled_data = torch.unbind(labeled_data)
         if isinstance(unlabeled_data, torch.Tensor):
-            labeled_data = torch.unbind(unlabeled_data)
+            unlabeled_data = torch.unbind(unlabeled_data)
 
         # TODO: deadline hack, fix this
         size = 0
-        for x in labeled_data:
-            grad = model_gradients_using_backprop(self.model, x).detach()
-            p += grad @ grad.T
-            size += 1
         for x in unlabeled_data:
             grad = model_gradients_using_backprop(self.model, x).detach()
             p += grad @ grad.T
             size += 1
 
         # Compute the inverse of the fisher information matrix
-        p *= 1 / size
+        p /= size
 
         return p
 
