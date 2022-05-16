@@ -2,6 +2,7 @@ import torch
 
 from preconditioners.optimizers.precond_base import PrecondBase
 from preconditioners.utils import model_gradients_using_backprop
+from preconditioners.settings import DEVICE
 
 
 class PrecondGD(PrecondBase):
@@ -53,7 +54,7 @@ class PrecondGD(PrecondBase):
         p = self._compute_fisher()
 
         # add damping to avoid division by zero
-        p += torch.eye(p.shape[0]) * group['damping']
+        p += torch.eye(p.shape[0], device=DEVICE) * group['damping']
         p_inv = torch.cholesky_inverse(p)
 
         if self.is_linear:
