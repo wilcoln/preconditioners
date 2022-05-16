@@ -142,6 +142,7 @@ def train(model, train_data, optimizer, loss_function, args):
                 no_improvement_counter += 1
                 stag_loss = min(stag_loss, current_loss)
             else:
+                no_improvement_counter = 0
                 stag_loss = current_loss
 
 
@@ -183,10 +184,10 @@ def generate_linear_params(args):
     return w_star, c
 
 
-def generate_quadratic_params(args):
-    w_star = generate_true_parameter(args.d, args.r2, m=np.eye(args.d))
-    W_star = generate_W_star(args.d, args.r2)
-    c = generate_c(args.ro, regime='autoregressive', d=args.d)
+def generate_quadratic_params(args, rng):
+    w_star = generate_true_parameter(args.d, args.r2, m=np.eye(args.d), rng=rng)
+    W_star = generate_W_star(args.d, args.r2, rng=rng)
+    c = generate_c(args.ro, regime='autoregressive', d=args.d, rng=rng)
     return W_star, w_star, c
 
 
@@ -282,13 +283,13 @@ if __name__ == '__main__':
     test_errors = defaultdict(list)
 
     # Generate true parameters
-    W_star, w_star, c = generate_quadratic_params(args)
+    rng = np.random.RandomState(404)
+    W_star, w_star, c = generate_quadratic_params(args, rng)
 
     extra_data = CenteredQuadraticGaussianDataset(
-        W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.extra_size, sigma2=1)
+        W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.extra_size, sigma2=1, rng=rng)
 
     inv_fisher_cache = None
-    # inv_fisher_norm_cache = None
 
     # Set progress bar
     pbar = tqdm(total=args.num_runs * len(OPTIMIZER_CLASSES) * len(noise_variances))
@@ -325,7 +326,6 @@ if __name__ == '__main__':
                     test_loss = kfac_test(hk_model, params, test_data)
                 else:
                     # Instantiate the optimizer
-                    # lr = args.lr / inv_fisher_norm_cache if inv_fisher_norm_cache is not None else args.lr
                     optimizer = instantiate_optimizer(optim_cls, train_data,
                         extra_data, lr=args.lr, gd_lr=args.gd_lr,
                         damping=args.damping, use_init_fisher=args.use_init_fisher)
@@ -336,9 +336,6 @@ if __name__ == '__main__':
                             optimizer.last_p_inv = inv_fisher_cache
                         else:
                             inv_fisher_cache = optimizer._compute_p_inv()
-                            # inv_fisher_norm_cache = torch.norm(inv_fisher_cache, 'fro').item()
-                            # for g in optimizer.param_groups:
-                            #     g['lr'] = args.lr / inv_fisher_norm_cache
 
                     # Train
                     train_loss, model_logs = train(model, train_data, optimizer, LOSS_FUNCTION, args)
