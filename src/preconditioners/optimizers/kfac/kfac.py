@@ -67,10 +67,10 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=1
     # stop if 5 consecutive epochs have no improvement
     no_improvement_counter = 0
     condition = None
+    previous_loss = float('inf')
 
     while not condition:
         rng, key = jax.random.split(rng)
-        previous_loss = current_loss
         params, opt_state, stats = optimizer.step(params, opt_state, key, batch=input_dataset, momentum=0.0,
                                                   damping=damping)
 
@@ -82,17 +82,19 @@ def train(input_dataset, mlp_output_sizes, max_iter, damping, tol, print_every=1
         if epoch == 1 or epoch % print_every == 0:
             print(f'Epoch {epoch}: Train loss: {current_loss:.4f}')
 
-        # Update condition
-        delta_loss = current_loss - previous_loss
-        no_improvement_counter += 1 if jnp.abs(delta_loss) < stagnation_threshold else 0
-        if no_improvement_counter > stagnation_count_max:  # stagnation
-            condition = 'stagnation'
-        elif current_loss <= tol:
-            condition = 'tol'
-        elif epoch >= max_iter:
-            condition = 'max_iter'
+            # Update condition
+            delta_loss = previous_loss - current_loss
+            no_improvement_counter += 1 if jnp.abs(delta_loss) < stagnation_threshold else 0
+            if no_improvement_counter > stagnation_count_max:  # stagnation
+                condition = 'stagnation'
+            elif current_loss <= tol:
+                condition = 'tol'
+            elif epoch >= max_iter:
+                condition = 'max_iter'
 
         model_logs['losses'].append(current_loss)
+
+        previous_loss = current_loss
 
     # Final print
     print('*** FINAL EPOCH ***')

@@ -51,7 +51,7 @@ def get_args():
     parser.add_argument('--tol', help='tol', type=float, default=1e-3)
     parser.add_argument('--lr', help='lr', type=float, default=1e-3)
     parser.add_argument('--gd_lr', help='gd lr', type=float, default=None)
-    parser.add_argument('--stagnation_threshold', help='Maximum change in loss that counts as no progress', type=float, default=1)
+    parser.add_argument('--stagnation_threshold', help='Maximum change in loss that counts as no progress', type=float, default=1e-6)
     parser.add_argument('--stagnation_count_max', help='Maximum number of iterations of no progress before the experiment terminates', type=int, default=5)
     # Data parameters
     parser.add_argument('--ro', help='ro', type=float, default=.5)
@@ -139,7 +139,7 @@ def train(model, train_data, optimizer, loss_function, args):
 
             # Update condition
             delta_loss = previous_loss -current_loss
-            if abs(delta_loss) < args.stagnation_threshold * args.lr * args.print_every:
+            if abs(delta_loss) < args.stagnation_threshold * args.print_every:
                 no_improvement_counter += 1
             if no_improvement_counter > args.stagnation_count_max:  # stagnation
                 condition = 'stagnation'
