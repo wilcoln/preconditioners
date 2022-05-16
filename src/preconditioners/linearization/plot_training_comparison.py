@@ -13,6 +13,7 @@ parser.add_argument('--folder', help='Folder of experiment', type=str)
 parser.add_argument('--num_test_points', help='Number of test points to plot', type=int, default=5)
 parser.add_argument('--num_weights', help='Number of weights to plot', type=int, default=5)
 parser.add_argument('--max_iter', help='Maximum number of iterations to plot', type=int, default=float('inf'))
+parser.add_argument('--save_pdf', action='store_true')
 
 args = parser.parse_args()
 
@@ -84,42 +85,55 @@ for entry in results:
 
 # Plot normalised distance against epochs
 if plot_frob_distance:
-    plt.plot(epochs, distance)
-    plt.xlabel(r'$t$')
-    plt.ylabel(r'$\frac{\| \theta_t - \theta_0\|_F}{\|\theta_0\|_F}$')
-    plt.show()
+    with plt.style.context('seaborn'):
+        plt.plot(epochs, distance)
+        plt.xlabel(r'$t$')
+        plt.ylabel(r'$\frac{\| \theta_t - \theta_0\|_F}{\|\theta_0\|_F}$')
+        if args.save_pdf:
+            plt.savefig(os.path.join(args.folder, f'frob_plot.pdf'))
+        plt.show()
 
 # Plot change in weights over epochs
 if plot_random_weights:
-    n = args.num_weights
-    for w_path, w_path_lin in zip(weights[:n], weights_lin[:n]):
-        lines = plt.plot(epochs, np.array(w_path) - w_path[0])
-        lines_lin = plt.plot(epochs, w_path_lin, '--')
-        lines_lin[0].set_color(lines[0].get_color())
-    plt.xlabel(r'$t$')
-    plt.ylabel('Weight Change')
-    plt.show()
+    with plt.style.context('seaborn'):
+        n = args.num_weights
+        for w_path, w_path_lin in zip(weights[:n], weights_lin[:n]):
+            lines = plt.plot(epochs, np.array(w_path) - w_path[0])
+            lines_lin = plt.plot(epochs, w_path_lin, '--')
+            lines_lin[0].set_color(lines[0].get_color())
+        plt.xlabel(r'$t$')
+        plt.ylabel('Weight Change')
+        if args.save_pdf:
+            plt.savefig(os.path.join(args.folder, f'weights_plot.pdf'))
+        plt.show()
 
 # Plot loss over epochs
 if plot_loss:
-    train_lines = plt.plot(epochs, loss, label='Train')
-    test_lines = plt.plot(epochs, test_loss, label='Test')
-    train_lin_lines = plt.plot(epochs, loss_lin, linestyle='dashed')
-    test_lin_lines = plt.plot(epochs, test_loss_lin, linestyle='dashed')
-    train_lin_lines[0].set_color(train_lines[0].get_color())
-    test_lin_lines[0].set_color(test_lines[0].get_color())
-    plt.xlabel(r'$t$')
-    plt.ylabel('Train/Test Loss')
-    plt.legend()
-    plt.show()
+    with plt.style.context('seaborn'):
+        train_lines = plt.plot(epochs, loss, label='Train')
+        test_lines = plt.plot(epochs, test_loss, label='Test')
+        train_lin_lines = plt.plot(epochs, loss_lin, linestyle='dashed')
+        test_lin_lines = plt.plot(epochs, test_loss_lin, linestyle='dashed')
+        train_lin_lines[0].set_color(train_lines[0].get_color())
+        test_lin_lines[0].set_color(test_lines[0].get_color())
+        plt.xlabel(r'$t$')
+        plt.ylabel('Train/Test Loss')
+        plt.legend()
+        if args.save_pdf:
+            plt.savefig(os.path.join(args.folder, f'loss_plot.pdf'))
+        plt.show()
 
 # Plot test output over epochs
 if plot_test_output:
-    n = args.num_test_points
-    for output_path, output_path_lin in zip(test_output[:n], test_output_lin[:n]):
-        lines = plt.plot(epochs, output_path)
-        lines_lin = plt.plot(epochs, output_path_lin, '--')
-        lines_lin[0].set_color(lines[0].get_color())
-    plt.xlabel(r'$t$')
-    plt.ylabel('Test Output Value')
-    plt.show()
+    with plt.style.context('seaborn'):
+        n = args.num_test_points
+        for output_path in test_output[:n]:
+            lines = plt.plot(epochs, output_path)
+        plt.gca().set_prop_cycle(None)
+        for output_path_lin in test_output_lin[:n]:
+            plt.plot(epochs, output_path_lin, '--')
+        plt.xlabel(r'$t$')
+        plt.ylabel('Test Output Value')
+        if args.save_pdf:
+            plt.savefig(os.path.join(args.folder, f'test_output_plot.pdf'))
+        plt.show()
