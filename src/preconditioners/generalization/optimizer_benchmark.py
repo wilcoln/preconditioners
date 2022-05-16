@@ -8,6 +8,7 @@ import os
 import json
 import pickle
 from collections import defaultdict
+from copy import deepcopy
 
 import numpy as np
 import torch
@@ -29,7 +30,7 @@ import warnings
 
 # Fixed
 LOSS_FUNCTION = torch.nn.MSELoss()
-OPTIMIZER_CLASSES = [PrecondGD, Kfac, GradientDescent]
+OPTIMIZER_CLASSES = [PrecondGD, GradientDescent]
 
 def get_args():
     # CLI provided parameters
@@ -261,7 +262,7 @@ if __name__ == '__main__':
     noise_variances = np.linspace(args.min_variance, args.max_variance, args.num_plot_points)
     num_params = (1 + args.d) * args.width + (args.width ** 2) * (args.num_layers - 2)
     model = MLP(in_channels=args.d, num_layers=args.num_layers, hidden_channels=args.width).double().to(settings.DEVICE)
-    init_model_state = model.state_dict()
+    init_model_state = deepcopy(model.state_dict())
     # endregion
 
     # Create results dir and save params
