@@ -206,7 +206,7 @@ def save_model_logs(model_logs, results_dir, model_name):
         pickle.dump(model_logs, f)
 
 
-def plot_and_save_results(test_errors, results_dir):
+def plot_and_save_results(test_errors, results_dir, save_test_error=True, final_plot=False):
     # Compute mean test errors
     mean_test_errors = defaultdict(list)
     for optim_cls, test_losses in test_errors.items():
@@ -223,11 +223,17 @@ def plot_and_save_results(test_errors, results_dir):
         plt.legend([optim_cls.__name__ for optim_cls in OPTIMIZER_CLASSES])
 
     # Save figure
-    plt.savefig(os.path.join(results_dir, 'plot.pdf'), format='pdf')
+    dtstamp = str(dt.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
+    if final_plot:
+        plot_location = os.path.join(results_dir, 'plot_' + dtstamp + '.pdf')
+    else:
+        plot_location = os.path.join(results_dir, 'plots', 'plot_' + dtstamp + '.pdf')
+    plt.savefig(plot_location, format='pdf')
 
     # Save all test_errors
-    with open(os.path.join(results_dir, 'test_errors.pkl'), 'wb') as f:
-        pickle.dump(test_errors, f)
+    if save_test_error:
+        with open(os.path.join(results_dir, 'test_errors.pkl'), 'wb') as f:
+            pickle.dump(test_errors, f)
     # Save mean_test_errors
     with open(os.path.join(results_dir, 'mean_test_errors.pkl'), 'wb') as f:
         pickle.dump(mean_test_errors, f)
@@ -235,7 +241,10 @@ def plot_and_save_results(test_errors, results_dir):
     # Print path to results
     print(f'Results saved to {results_dir}')
 
-    plt.show()
+    if final_plot:
+        plt.show()
+    else:
+        plt.clf()
 
 def create_results_dir_and_save_params(params_dict):
     # Create folder name
@@ -246,6 +255,7 @@ def create_results_dir_and_save_params(params_dict):
     # Create folder
     os.makedirs(results_dir)
     os.makedirs(os.path.join(results_dir, 'model_logs'))
+    os.makedirs(os.path.join(results_dir, 'plots'))
 
     # Save params
     with open(os.path.join(results_dir, 'params.json'), 'w') as f:
@@ -289,9 +299,9 @@ if __name__ == '__main__':
 
     # Run experiments
     for num_run in range(1, 1 + args.num_runs):
-        print(f'\n\nRun N°: {num_run}')
         run_test_errors = defaultdict(list)
         for sigma2 in noise_variances:
+            print(f'\n\nRun N°: {num_run}')
             print(f'\n\nNoise variance: {sigma2}')
 
             # Generate data
@@ -337,6 +347,8 @@ if __name__ == '__main__':
                     test_loss = test(model, test_data, LOSS_FUNCTION)
                     model.reset_parameters(init_model_state)
 
+
+                model_logs['sigma2'] = sigma2
                 model_logs['test_loss'] = test_loss
                 save_model_logs(model_logs, results_dir, model_name)
                 print(f"Test loss: {test_loss:4f}")
@@ -351,5 +363,7 @@ if __name__ == '__main__':
         for optim_cls, test_losses in run_test_errors.items():
             test_errors[optim_cls].append(test_losses)
 
-    # Plot and Save mean test errors
-    plot_and_save_results(test_errors, results_dir)
+        # Plot and Save mean test errors
+        plot_and_save_results(test_errors, results_dir, save_test_error=False, final_plot=False)
+
+    plot_and_save_results(test_errors, results_dir, save_test_error=True, final_plot=True)
