@@ -94,9 +94,9 @@ if __name__ == "__main__":
     model, init_params = create_jax_model(width, num_layers, in_dim=in_dim, out_dim=1, key=key)
 
     # For each variance value, run the KFAC training comparison experiment
-    for variance in np.arange(min_var, max_var + step_var, step_var):
-        variance = variance.astype(float)
-        for i in range(num_runs):
+    for i in range(num_runs):
+        for variance in np.arange(min_var, max_var + step_var, step_var):
+            variance = variance.astype(float)
             # Add noise to labels
             xi = np.random.normal(0, np.sqrt(variance), size=(train_size + test_size, 1))
             y = y_noiseless + xi
@@ -104,6 +104,7 @@ if __name__ == "__main__":
             test_data = (x[train_size:], y[train_size:])
 
             print(f"\nPerforming expeirment for sigma2={variance}...")
+            print(f"Run number: {i}")
             params_dict['sigma2'] = variance
 
             # Set up experiment
