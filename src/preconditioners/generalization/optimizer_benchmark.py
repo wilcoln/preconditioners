@@ -350,6 +350,7 @@ if __name__ == '__main__':
 
                 model_logs['sigma2'] = sigma2
                 model_logs['test_loss'] = test_loss
+                model_logs['optimizer'] = optim_cls.__name__
                 save_model_logs(model_logs, results_dir, model_name)
                 print(f"Test loss: {test_loss:4f}")
 
