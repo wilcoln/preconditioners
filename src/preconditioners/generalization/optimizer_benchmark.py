@@ -40,7 +40,6 @@ def get_args():
     parser.add_argument('--max_variance', help='Max var', default=10, type=int)
     parser.add_argument('--min_variance', help='Min var', default=1, type=int)
     parser.add_argument('--num_plot_points', help='Number of plot points', default=10, type=int)
-    parser.add_argument('--results_dir', help='Folder path', type=str)
     # Dataset size
     parser.add_argument('--train_size', help='Train size', default=128, type=int)
     parser.add_argument('--test_size', help='Test size', default=128, type=int)

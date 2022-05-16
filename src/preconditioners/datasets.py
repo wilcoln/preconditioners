@@ -109,13 +109,13 @@ def generate_centered_quadratic_gaussian_data(W_star, w_star, c, n=200, d=10, si
     """
     assert W_star.shape == (d, d), 'dimensions error'
 
-    rng = rng if rng is not None else np
+    rng = rng if rng is not None else np.random
 
     # generate features
-    X = rng.random.multivariate_normal(mean=np.zeros(d), cov=c, size=n)
+    X = rng.multivariate_normal(mean=np.zeros(d), cov=c, size=n)
 
     # generate_noise
-    xi = rng.random.normal(0, np.sqrt(sigma2), size=n)
+    xi = rng.normal(0, np.sqrt(sigma2), size=n)
 
     # generate response
     y = (X.dot(W_star)*X).sum(axis=1) + X.dot(w_star) + xi # equivalent to np.array([X[i].T.dot(W_star.dot(X[i])) for i in range(n)]) + X.dot(w_star) + xi
@@ -143,27 +143,27 @@ def generate_true_parameter(d=10, r1=5, m=None, rng=None, **kwargs):
 
     assert (m.shape[0] == d) & (m.shape[1] == d)
 
-    rng = rng if rng is not None else np
-    w_star = rng.random.multivariate_normal(np.zeros(d), r1 / d * m)
+    rng = rng if rng is not None else np.random
+    w_star = rng.multivariate_normal(np.zeros(d), r1 / d * m)
 
     return w_star
 
-def generate_W_star(d=10, r2=5, rng=None **kwargs):
+def generate_W_star(d=10, r2=5, rng=None, **kwargs):
     """Generates W_star for the quadratic model
 
     Return a somewhat random matrix of size (d, d), which does not have degenerate trace or determinant.
     """
-    rng = rng if rng is not None else np
-    ro = 0.4 + rng.random.rand()/2
+    rng = rng if rng is not None else np.random
+    ro = 0.4 + rng.rand()/2
     c = generate_c(ro=ro, regime='autoregressive', d=d)
     V, D, Vt = np.linalg.svd(c)
 
     for i in range(len(D)):
-        if rng.random.rand()<0.25:
+        if rng.rand()<0.25:
             D[i] = D[i]*0.5
-        elif rng.random.rand()>0.75:
+        elif rng.rand()>0.75:
             D[i] = D[i]*2
-    D = np.abs(D + rng.random.multivariate_normal(np.zeros(d), np.diag(D)/10))
+    D = np.abs(D + rng.multivariate_normal(np.zeros(d), np.diag(D)/10))
     largest_eval = np.max(D)
     D = D/largest_eval
 
