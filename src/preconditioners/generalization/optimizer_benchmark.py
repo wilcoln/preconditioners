@@ -102,16 +102,14 @@ def train(model, train_data, optimizer, loss_function, args):
     condition = None
     stag_loss = float('inf')
 
+    # Get and prepare inputs
+    inputs, targets = train_data[:]
+    # Set the inputs and targets to the device
+    inputs, targets = inputs.double().to(settings.DEVICE), targets.double().to(settings.DEVICE)
+    targets = targets.reshape((targets.shape[0], 1))
+
     while not condition:
         model.train()
-
-        previous_model_state = model.state_dict()
-
-        # Get and prepare inputs
-        inputs, targets = train_data[:]
-        # Set the inputs and targets to the device
-        inputs, targets = inputs.double().to(settings.DEVICE), targets.double().to(settings.DEVICE)
-        targets = targets.reshape((targets.shape[0], 1))
 
         # Zero the gradients
         optimizer.zero_grad()
@@ -242,7 +240,7 @@ def create_results_dir_and_save_params(params_dict):
     # Create folder name
     dtstamp = str(dt.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
     folder_name = dtstamp
-    results_dir = os.path.join(plots_dir, 'optimizer_benchmark', folder_name)
+    results_dir = os.path.join(plots_dir, 'optimizer_benchmark_' + dt_stamp)
 
     # Create folder
     os.makedirs(results_dir)
@@ -263,6 +261,7 @@ if __name__ == '__main__':
     noise_variances = np.linspace(args.min_variance, args.max_variance, args.num_plot_points)
     num_params = (1 + args.d) * args.width + (args.width ** 2) * (args.num_layers - 2)
     model = MLP(in_channels=args.d, num_layers=args.num_layers, hidden_channels=args.width).double().to(settings.DEVICE)
+    init_model_state = model.state_dict()
     # endregion
 
     # Create results dir and save params
@@ -335,7 +334,7 @@ if __name__ == '__main__':
 
                     # Test
                     test_loss = test(model, test_data, LOSS_FUNCTION)
-                    model.reset_parameters()
+                    model.reset_parameters(init_model_state)
 
                 model_logs['test_loss'] = test_loss
                 save_model_logs(model_logs, results_dir, model_name)
