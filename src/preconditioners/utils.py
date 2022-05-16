@@ -378,10 +378,10 @@ class MLP(nn.Module):
 
     def __init__(self, in_channels, num_layers=2, hidden_channels=100, std=1.):
         super().__init__()
-        self.in_layer = nn.Linear(in_channels, hidden_channels, bias=False)
+        self.in_layer = nn.Linear(in_channels, hidden_channels, bias=True)
         self.hidden_channels = hidden_channels
         self.hidden_layers = nn.ModuleList([
-            nn.Linear(hidden_channels, hidden_channels)
+            nn.Linear(hidden_channels, hidden_channels, bias=True)
             for _ in range(num_layers - 2)
         ])
         self.output_layer = nn.Linear(hidden_channels, 1, bias=False)

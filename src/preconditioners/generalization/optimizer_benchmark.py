@@ -29,7 +29,7 @@ import warnings
 
 # Fixed
 LOSS_FUNCTION = torch.nn.MSELoss()
-optimizer_classes = [Kfac, GradientDescent, PrecondGD]
+OPTIMIZER_CLASSES = [Kfac, GradientDescent, PrecondGD]
 
 def get_args():
     # CLI provided parameters
@@ -46,7 +46,7 @@ def get_args():
     parser.add_argument('--train_size', help='Train size', default=10, type=int)
     # Model/opt parameters
     parser.add_argument('--num_layers', help='Number of layers', default=3, type=int)
-    parser.add_argument('--width', help='Hidden channels', type=int)
+    parser.add_argument('--width', help='Hidden channels', type=int, default=8)
     parser.add_argument('--damping', help='damping', type=float, default=1.0)
     parser.add_argument('--tol', help='tol', type=float, default=1e-3)
     parser.add_argument('--lr', help='lr', type=float, default=1e-3)
@@ -210,12 +210,12 @@ def plot_and_save_results(test_errors, results_dir):
         mean_test_errors[optim_cls] = np.nanmean(test_losses, axis=0).tolist()
 
     # Plot the mean test errors
-    for optim_cls in optimizer_classes:
+    for optim_cls in OPTIMIZER_CLASSES:
         plt.scatter(noise_variances, mean_test_errors[optim_cls.__name__], label=optim_cls.__name__)
 
         plt.xlabel('Noise variance')
         plt.ylabel('Test loss')
-        plt.legend([optim_cls.__name__ for optim_cls in optimizer_classes])
+        plt.legend([optim_cls.__name__ for optim_cls in OPTIMIZER_CLASSES])
 
     # Save figure
     plt.savefig(os.path.join(results_dir, 'plot.pdf'), format='pdf')
@@ -262,18 +262,21 @@ if __name__ == '__main__':
     # endregion
 
     # Create results dir and save params
-    results_dir = create_results_dir_and_save_params()
+    results_dir = create_results_dir_and_save_params(params_dict=vars(args))
 
     # Test errors collector
     test_errors = defaultdict(list)
 
     # Generate true parameters
-    W_star, w_star, c = generate_quadratic_params()
+    W_star, w_star, c = generate_quadratic_params(args)
 
     extra_data = CenteredQuadraticGaussianDataset(
-        W_star=W_star, w_star=w_star, d=args.d, c=c, n=extra_size, sigma2=sigma2)
+        W_star=W_star, w_star=w_star, d=args.d, c=c, n=extra_size, sigma2=1)
+
+    inv_fisher_cache = None
+
     # Set progress bar
-    pbar = tqdm(total=args.num_runs * len(optimizer_classes) * len(noise_variances))
+    pbar = tqdm(total=args.num_runs * len(OPTIMIZER_CLASSES) * len(noise_variances))
     pbar.set_description('Running experiments')
 
     # Shutdown warnings
@@ -291,7 +294,7 @@ if __name__ == '__main__':
                 W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.train_size + test_size, sigma2=sigma2)
             train_data, test_data = random_split(dataset, [args.train_size, test_size])
 
-            for optim_cls in optimizer_classes:
+            for optim_cls in OPTIMIZER_CLASSES:
                 # For each optimizer
                 model_name = optim_cls.__name__ + f'_sigma2={sigma2}' + f'_run={num_run}'
                 print(f'\n\nOptimizer: {optim_cls.__name__}')
@@ -307,12 +310,23 @@ if __name__ == '__main__':
                     test_loss = kfac_test(hk_model, params, test_data)
                 else:
                     # Instantiate the optimizer
-                    optimizer = instantiate_optimizer(optim_cls, train_data, extra_data)
+                    optimizer = instantiate_optimizer(optim_cls, train_data,
+                        extra_data, lr=args.lr, gd_lr=args.gd_lr,
+                        damping=args.damping, use_init_fisher=args.use_init_fisher)
+
+                    # For caching inverse fisher matrix
+                    if optim_cls == PrecondGD and args.use_init_fisher and inv_fisher_cache is not None:
+                        optimizer.last_p_inv = inv_fisher_cache
+
                     # Train
-                    train_loss, model_logs = train(model, train_data, optimizer, loss_function, args.tol, args.max_iter,
-                                                   print_every=args.print_every)
+                    train_loss, model_logs = train(model, train_data, optimizer, LOSS_FUNCTION, args)
+
+                    # For caching the inverse Fisher matrix
+                    if optim_cls == PrecondGD and args.use_init_fisher and inv_fisher_cache is None:
+                        inv_fisher_cache = optimizer.last_p_inv
+
                     # Test
-                    test_loss = test(model, test_data, loss_function)
+                    test_loss = test(model, test_data, LOSS_FUNCTION)
                     model.reset_parameters()
 
                 model_logs['test_loss'] = test_loss
