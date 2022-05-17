@@ -58,6 +58,7 @@ def get_args():
     parser.add_argument('--r2', help='r2', type=float, default=1)
     parser.add_argument('--d', help='d', type=float, default=10)
     parser.add_argument('--use_init_fisher', action='store_true')
+    parser.add_argument('--fisher_update_steps', type=int, default=None)
     parser.add_argument('--print_every', help='print_every', type=int, default=100)
     args = parser.parse_args()
     # endregion
@@ -127,6 +128,9 @@ def train(model, train_data, optimizer, loss_function, args):
         optimizer.step()
 
         epoch += 1
+
+        if args.fisher_update_steps is not None and args.use_init_fisher and epoch % args.fisher_update_steps == 0 and isinstance(optimizer, PrecondGD):
+            optimizer.last_p_inv = None
 
         # Print statistics
         if epoch == 1 or epoch % args.print_every == 0:
