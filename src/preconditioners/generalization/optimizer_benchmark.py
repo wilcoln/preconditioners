@@ -36,8 +36,8 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--num_runs', help='Number of runs', default=1, type=int)
     parser.add_argument('--max_iter', help='Max epochs', default=float('inf'), type=int)
-    parser.add_argument('--max_variance', help='Max var', default=10, type=int)
-    parser.add_argument('--min_variance', help='Min var', default=1, type=int)
+    parser.add_argument('--max_variance', help='Max var', default=10, type=float)
+    parser.add_argument('--min_variance', help='Min var', default=1, type=float)
     parser.add_argument('--num_plot_points', help='Number of plot points', default=10, type=int)
     # Dataset size
     parser.add_argument('--train_size', help='Train size', default=128, type=int)
