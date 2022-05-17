@@ -20,12 +20,11 @@ def get_args():
     parser.add_argument('--width', help='', type=int, default=128)
     # Optimizer params
     parser.add_argument('--lr', help='Learning rate', type=float, default=1e-1)
-    parser.add_argument('--gd_lr', help='Learning rate for GD', type=float, default=None)
     parser.add_argument('--damping', help='Damping coefficient', type=float, default=1e-1)
     parser.add_argument('--l2', help='L2-regularization coefficient', type=float, default=0.)
     parser.add_argument('--use_adaptive_lr', action='store_true', default=False)
     # Data params
-    parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic', 'MLP'], default='quadratic')
+    parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic'], default='quadratic')
     parser.add_argument('--train_size', help='Number of train examples', type=int, default=128)
     parser.add_argument('--test_size', help='Number of test examples', type=int, default=128)
     parser.add_argument('--extra_size', help='Number of test examples', type=int, default=256)
@@ -62,7 +61,7 @@ if __name__ == "__main__":
     train_size, test_size, extra_size = args.train_size, args.test_size, args.extra_size
     dataset, in_dim = args.dataset, args.in_dim
     width, num_layers = args.width, args.num_layers
-    lr, damping, l2, use_adaptive_lr, gd_lr = args.lr, args.damping, args.l2, args.use_adaptive_lr, args.gd_lr
+    lr, damping, l2, use_adaptive_lr = args.lr, args.damping, args.l2, args.use_adaptive_lr
     max_iter, save_every, num_test_points = args.max_iter, args.save_every, args.num_test_points
     ro, r1, regime = 0.5, 1, 'autoregressive'
     min_var, max_var, step_var = args.sigma2_min, args.sigma2_max, args.sigma2_step
@@ -115,7 +114,7 @@ if __name__ == "__main__":
             # Set up experiment
             print("Setting up optimizers...")
             params = init_params
-            experiment = ExtraDataExperiment(model, params, lr=lr, damping=damping, l2=l2, use_adaptive_lr=use_adaptive_lr, gd_lr=gd_lr)
+            experiment = ExtraDataExperiment(model, params, lr=lr, damping=damping, l2=l2, use_adaptive_lr=use_adaptive_lr)
             key, sub_key = jax.random.split(key)
             experiment.setup(train_data, extra_data, sub_key)
 
