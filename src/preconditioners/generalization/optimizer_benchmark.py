@@ -55,11 +55,13 @@ def get_args():
     parser.add_argument('--stagnation_count_max', help='Maximum number of iterations of no progress before the experiment terminates', type=int, default=5)
     # Data parameters
     parser.add_argument('--ro', help='ro', type=float, default=.5)
-    parser.add_argument('--r2', help='r2', type=float, default=1)
+    parser.add_argument('--r2', help='r2', type=float, default=0.1)
     parser.add_argument('--d', help='d', type=float, default=10)
     parser.add_argument('--use_init_fisher', action='store_true')
     parser.add_argument('--fisher_update_steps', type=int, default=None)
+    parser.add_argument('--lr_multiplier', type=float, default=1)
     parser.add_argument('--print_every', help='print_every', type=int, default=100)
+    parser.add_argument('--dataset', help='quadratic or linear', type=str, default='quadratic')
     args = parser.parse_args()
     # endregion
 
@@ -131,6 +133,9 @@ def train(model, train_data, optimizer, loss_function, args):
 
         if args.fisher_update_steps is not None and args.use_init_fisher and epoch % args.fisher_update_steps == 0 and isinstance(optimizer, PrecondGD):
             optimizer.last_p_inv = None
+            # change the learning rate
+            for group in optimizer.param_groups:
+                group['lr'] = group['lr'] * args.lr_multiplier
 
         # Print statistics
         if epoch == 1 or epoch % args.print_every == 0:
@@ -309,9 +314,18 @@ if __name__ == '__main__':
             print(f'\n\nNoise variance: {sigma2}')
 
             # Generate data
-            dataset = CenteredQuadraticGaussianDataset(
-                W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.train_size + args.test_size, sigma2=sigma2)
-            train_data, test_data = random_split(dataset, [args.train_size, args.test_size])
+            if args.dataset == 'quadratic':
+                dataset = CenteredQuadraticGaussianDataset(
+                    W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.train_size + args.test_size, sigma2=sigma2)
+                train_data, test_data = random_split(dataset, [args.train_size, args.test_size])
+            elif args.dataset == 'linear':
+                dataset = CenteredLinearGaussianDataset(
+                    w_star=w_star, d=args.d, c=c, n=args.train_size + args.test_size, sigma2=sigma2)
+                train_data, test_data = random_split(dataset, [args.train_size, args.test_size])
+
+            print(f'average norm of response {np.linalg.norm(dataset.y, 2)**2 / len(dataset.y)}')
+            print(f'sigma^2: {sigma2}')
+            print(f'r^2:{args.r2}')
 
             for optim_cls in OPTIMIZER_CLASSES:
                 # For each optimizer
