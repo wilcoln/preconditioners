@@ -18,6 +18,8 @@ args = parser.parse_args()
 var_to_loss = {}
 
 for experiment_folder in os.listdir(args.folder):
+    if not os.path.isdir(os.path.join(args.folder, experiment_folder)):
+        continue
     with open(os.path.join(args.folder, experiment_folder, 'results.pkl'), 'rb') as f:
         results = pickle.load(f)
     with open(os.path.join(args.folder, experiment_folder, 'params.json'), 'rb') as f:
