@@ -230,7 +230,7 @@ def plot_and_save_results(test_errors, results_dir, save_test_error=True, final_
         pickle.dump(mean_test_errors, f)
 
     # Print path to results
-    print(f'Results saved to {results_dir}')
+    print(f'\nResults saved to {results_dir}')
 
     if final_plot:
         plt.show()
@@ -293,19 +293,19 @@ if __name__ == '__main__':
             d=args.d, regime='autoregressive', ro=args.ro, r1=args.r2, sigma2=0, num_layers=args.num_layers, hidden_channels=args.width)
         x, y_noiseless = noiseless_data
 
+        average_response = np.inner(y_noiseless, y_noiseless) / (args.train_size + args.test_size)
+        print(f"Average norm of response {average_response}")
+        print(f"r^2:{args.r2}")
+
         run_test_errors = defaultdict(list)
         for sigma2 in noise_variances:
             print(f'\n\nRun N°: {num_run}')
-            print(f'\n\nNoise variance: {sigma2}')
+            print(f'Noise variance: {sigma2}')
 
             xi = np.random.normal(0, np.sqrt(sigma2), size=(args.train_size + args.test_size))
             y = y_noiseless + xi
             train_data = NumpyDataset(x[:args.train_size], y[:args.train_size])
             test_data = NumpyDataset(x[args.train_size:], y[args.train_size:])
-
-            print(f"average norm of response {np.linalg.norm(dataset.y, 2)**2 / len(dataset.y)}"")
-            print(f"sigma^2: {sigma2}")
-            print(f"r^2:{args.r2}")
 
             for optim_cls in OPTIMIZER_CLASSES:
                 # For each optimizer
@@ -343,6 +343,7 @@ if __name__ == '__main__':
 
 
                 model_logs['sigma2'] = sigma2
+                model_logs['average_response'] = average_response
                 model_logs['test_loss'] = test_loss
                 model_logs['optimizer'] = optim_cls.__name__
                 save_model_logs(model_logs, results_dir, model_name)
