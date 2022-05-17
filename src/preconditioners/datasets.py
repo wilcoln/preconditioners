@@ -3,6 +3,7 @@ import torch.utils.data
 from icecream import ic
 import numpy as np
 import warnings
+from preconditioners.utils import MLP
 
 class NumpyDataset(torch.utils.data.Dataset):
 
@@ -15,7 +16,6 @@ class NumpyDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, i):
         return self.X[i], self.y[i]
-
 
 class CenteredLinearGaussianDataset(torch.utils.data.Dataset):
     """
@@ -74,12 +74,21 @@ def generate_data(dataset_name='linear', **kwargs):
         c = generate_c(**kwargs)
         x, y, _ = generate_centered_linear_gaussian_data(w_star=w_star, c=c, **kwargs)
         return (x, y)
-    if dataset_name == 'quadratic':
+    elif dataset_name == 'quadratic':
         w_star = generate_true_parameter(**kwargs)
         W_star = generate_W_star(**kwargs)
         c = generate_c(**kwargs)
         x, y, _ = generate_centered_quadratic_gaussian_data(W_star=W_star, w_star=w_star, c=c, **kwargs)
         return (x, y)
+    elif dataset_name == 'MLP':
+        d, n, sigma2 = kwargs['d'], kwargs['n'], kwargs['sigma2']
+        c = generate_c(**kwargs)
+        X = np.random.multivariate_normal(mean=np.zeros(d), cov=c, size=n)
+        model = MLP(in_channels=d, num_layers=kwargs['num_layers'], hidden_channels=kwargs['hidden_channels'])
+        y_noiseless = model(torch.from_numpy(X).float()).cpu().detach().numpy()
+        y = y_noiseless + np.random.normal(0, sigma2, size=(n, 1))
+        y = np.squeeze(y)
+        return (X, y)
 
     raise Exception(f"Unrecognised dataset name")
 
