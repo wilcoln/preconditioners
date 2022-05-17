@@ -170,7 +170,7 @@ def generate_true_parameter(d=10, r1=5, m=None, rng=None, **kwargs):
 
     return w_star
 
-def generate_W_star(d=10, r2=5, rng=None, **kwargs):
+def generate_W_star(d=10, r2=1, rng=None, **kwargs):
     """Generates W_star for the quadratic model
 
     Return a somewhat random matrix of size (d, d), which does not have degenerate trace or determinant.
@@ -193,7 +193,7 @@ def generate_W_star(d=10, r2=5, rng=None, **kwargs):
     return W
 
 
-def generate_c(ro=0.25, regime='id', d=600, strong_feature=1, strong_feature_ratio=1 / 2, weak_feature=1, **kwargs):
+def generate_c(ro=0.5, regime='id', d=10, strong_feature=1, strong_feature_ratio=1 / 2, weak_feature=1, **kwargs):
     """Generates c for quadratic and linear dataset"""
     c = np.eye(d)
 
