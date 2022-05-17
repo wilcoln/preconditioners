@@ -85,16 +85,20 @@ if __name__ == "__main__":
     key = jax.random.PRNGKey(42)
     model, init_params = create_jax_model(width, num_layers, in_dim=in_dim, out_dim=1, key=key)
 
+    # Generate extra data
+    extra_data = generate_data(dataset, n=extra_size,
+        d=in_dim, regime='autoregressive', ro=ro, r1=r1, sigma2=0, hidden_channels=width, num_layers=num_layers)
+    x, y = extra_data
+    y = np.expand_dims(y, 1)
+    extra_data = (x, y)
+
     # For each variance value, run the KFAC training comparison experiment
     for i in range(num_runs):
         # Generate data
-        noiseless_data = generate_data(dataset, n=train_size + extra_size + test_size,
+        noiseless_data = generate_data(dataset, n=train_size + test_size,
             d=in_dim, regime='autoregressive', ro=ro, r1=r1, sigma2=0, hidden_channels=width, num_layers=num_layers)
-        x, y = noiseless_data
-        y = np.expand_dims(y, 1)
-        extra_data = (x[-extra_size:], y[-extra_size:])
-        x = x[:-extra_size]
-        y_noiseless = y[:-extra_size]
+        x, y_noiseless = noiseless_data
+        y_noiseless = np.expand_dims(y_noiseless, 1)
 
         for variance in np.arange(min_var, max_var + step_var, step_var):
             variance = variance.astype(float)
