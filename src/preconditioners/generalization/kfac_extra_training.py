@@ -27,7 +27,7 @@ def get_args():
     parser.add_argument('--l2', help='L2-regularization coefficient', type=float, default=0.)
     parser.add_argument('--use_adaptive_lr', action='store_true')
     # Data params
-    parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic'], default='quadratic')
+    parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic', 'MLP'], default='quadratic')
     parser.add_argument('--train_size', help='Number of train examples', type=int, default=128)
     parser.add_argument('--test_size', help='Number of test examples', type=int, default=128)
     parser.add_argument('--extra_size', help='Number of extra examples', type=int, default=256)
@@ -45,15 +45,17 @@ def get_args():
 class ExtraDataExperiment:
     """Compare KFAC with and without extra data"""
 
-    def __init__(self, model, params, lr=1e-1, damping=1e-1, l2=0., use_adaptive_lr=False):
+    def __init__(self, model, params, lr=1e-1, damping=1e-1, l2=0., use_adaptive_lr=False, gd_lr=None):
         self.model = model
         self.params = params
         self.params_extra = params
+        self.params_gd = params
 
         self.results = []
         self.epoch = 0
 
         self.lr = lr
+        self.gd_lr = gd_lr if gd_lr is not None else lr
         self.damping = damping
         self.l2 = l2
         self.use_adaptive_lr = use_adaptive_lr
@@ -63,7 +65,8 @@ class ExtraDataExperiment:
         self.opt_state = None
         self.optimizer_extra = None
         self.opt_state_extra = None
-        self.grad_loss_extra = None
+
+        self.grad_loss = None
 
         self._done_initial_print = False
 
@@ -78,6 +81,8 @@ class ExtraDataExperiment:
         self.optimizer_extra = create_optimizer(self.loss_fn, self.l2, self.use_adaptive_lr)
         key, sub_key = jax.random.split(key)
         self.opt_state_extra = self.optimizer_extra.init(self.params_extra, sub_key, extra_data)
+
+        self.grad_loss = jax.grad(self.loss_fn)
 
     def step(self, train_data, extra_data, key):
         """Performs one step of training for both models"""
@@ -95,25 +100,32 @@ class ExtraDataExperiment:
             self.params_extra, self.opt_state_extra, sub_key, momentum=0., damping=self.damping,
             learning_rate=lr, learning_rate_scaling=scaling, batch=train_data, batch_extra=extra_data)
 
+        # Update GD
+        grads = self.grad_loss(self.params_gd, train_data)
+        delta = kfac_jax.utils.scalar_mul(grads, self.gd_lr)
+        self.params_gd = jax.tree_map(jnp.subtract, self.params_gd, delta)
+
         self.epoch += 1
 
     def log_result(self, train_data, test_data, verbose=True):
         # Get train and test loss
-        loss, loss_extra = self._eval(train_data)
-        test_loss, test_loss_extra = self._eval(test_data)
+        loss, loss_extra, loss_gd = self._eval(train_data)
+        test_loss, test_loss_extra, test_loss_gd = self._eval(test_data)
 
         if verbose:
             if not self._done_initial_print:
-                print("Epoch\tLoss\tExtra\tTest\tExtra")
+                print("Epoch\tLoss\tExtra\tGD\t\tTest\tExtra\tGD")
                 self._done_initial_print = True
-            print(f'{self.epoch}\t{loss:.4f}\t{loss_extra:.4f}\t{test_loss:.4f}\t{test_loss_extra:.4f}')
+            print(f'{self.epoch}\t{loss:.4f}\t{loss_extra:.4f}\t{loss_gd:.4f}\t\t{test_loss:.4f}\t{test_loss_extra:.4f}\t{test_loss_gd:.4f}')
 
         result = {
             'epoch': self.epoch,
             'train_loss': loss,
             'train_loss_extra': loss_extra,
+            'train_loss_gd': loss_gd,
             'test_loss': test_loss,
-            'test_loss_extra': test_loss_extra
+            'test_loss_extra': test_loss_extra,
+            'test_loss_gd': test_loss_gd
         }
 
         self.results.append(result)
@@ -140,7 +152,10 @@ class ExtraDataExperiment:
         y_hats_extra = self.model(self.params_extra, x)
         loss_extra = jnp.mean(jnp.square(y_hats_extra - y))
 
-        return float(loss), float(loss_extra)
+        y_hats_gd = self.model(self.params_gd, x)
+        loss_gd = jnp.mean(jnp.square(y_hats_gd - y))
+
+        return float(loss), float(loss_extra), float(loss_gd)
 
 def param_dist(params_1, params_2=0):
     """Computes the Frobenius distance between two parameter lists"""
@@ -214,7 +229,7 @@ if __name__ == "__main__":
     # Generate data
     print("Generating data...")
     dataset = generate_data(dataset, n=train_size + test_size + extra_size, d=in_dim,
-        regime=regime, ro=ro, r1=r1, sigma2=sigma2)
+        regime=regime, ro=ro, r1=r1, sigma2=sigma2, num_layers=num_layers, hidden_channels=width)
     train_data, test_data, extra_data = data_random_split(dataset, (train_size, test_size, extra_size))
 
     if args.extra_includes_train:
