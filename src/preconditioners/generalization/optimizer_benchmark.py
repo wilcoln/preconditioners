@@ -273,13 +273,10 @@ if __name__ == '__main__':
     test_errors = defaultdict(list)
 
     # Generate true parameters
-    noiseless_data = generate_data(args.dataset, n=args.train_size + args.extra_size + args.test_size,
+    extra_data = generate_data(args.dataset, n=args.extra_size,
         d=args.d, regime='autoregressive', ro=args.ro, r1=args.r2, sigma2=0, num_layers=args.num_layers, hidden_channels=args.width)
-    x, y = noiseless_data
-    extra_data = NumpyDataset(x[-args.extra_size:], y[-args.extra_size:])
-    x = x[:-args.extra_size]
-    y_noiseless = y[:-args.extra_size]
-
+    x, y = extra_data
+    extra_data = NumpyDataset(x, y)
     inv_fisher_cache = None
 
     # Set progress bar
@@ -291,6 +288,11 @@ if __name__ == '__main__':
 
     # Run experiments
     for num_run in range(1, 1 + args.num_runs):
+        # Generate true parameters
+        noiseless_data = generate_data(args.dataset, n=args.train_size + args.test_size,
+            d=args.d, regime='autoregressive', ro=args.ro, r1=args.r2, sigma2=0, num_layers=args.num_layers, hidden_channels=args.width)
+        x, y_noiseless = noiseless_data
+
         run_test_errors = defaultdict(list)
         for sigma2 in noise_variances:
             print(f'\n\nRun N°: {num_run}')
