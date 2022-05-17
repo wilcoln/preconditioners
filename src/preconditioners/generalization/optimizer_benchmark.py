@@ -53,7 +53,7 @@ def get_args():
     parser.add_argument('--stagnation_threshold', help='Maximum change in loss that counts as no progress', type=float, default=1e-6)
     parser.add_argument('--stagnation_count_max', help='Maximum number of iterations of no progress before the experiment terminates', type=int, default=5)
     # Data parameters
-    parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic'], default='quadratic')
+    parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic', 'MLP'], default='quadratic')
     parser.add_argument('--ro', help='ro', type=float, default=.5)
     parser.add_argument('--r2', help='r2', type=float, default=1)
     parser.add_argument('--d', help='d', type=float, default=10)
@@ -274,7 +274,7 @@ if __name__ == '__main__':
 
     # Generate true parameters
     noiseless_data = generate_data(args.dataset, n=args.train_size + args.extra_size + args.test_size,
-        d=args.d, regime='autoregressive', ro=args.ro, r1=args.r2, sigma2=0)
+        d=args.d, regime='autoregressive', ro=args.ro, r1=args.r2, sigma2=0, num_layers=args.num_layers, hidden_channels=args.width)
     x, y = noiseless_data
     extra_data = NumpyDataset(x[-args.extra_size:], y[-args.extra_size:])
     x = x[:-args.extra_size]
