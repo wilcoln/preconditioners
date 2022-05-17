@@ -30,7 +30,7 @@ import warnings
 
 # Fixed
 LOSS_FUNCTION = torch.nn.MSELoss()
-OPTIMIZER_CLASSES = [PrecondGD, GradientDescent]
+OPTIMIZER_CLASSES = [GradientDescent, PrecondGD]
 
 def get_args():
     # CLI provided parameters
@@ -131,6 +131,9 @@ def train(model, train_data, optimizer, loss_function, args):
 
         if args.fisher_update_steps is not None and args.use_init_fisher and epoch % args.fisher_update_steps == 0 and isinstance(optimizer, PrecondGD):
             optimizer.last_p_inv = None
+            # change the learning rate
+            for group in optimizer.param_groups:
+                group['lr'] = group['lr'] * 1.5
 
         # Print statistics
         if epoch == 1 or epoch % args.print_every == 0:
