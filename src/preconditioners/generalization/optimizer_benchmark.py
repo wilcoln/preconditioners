@@ -301,6 +301,10 @@ if __name__ == '__main__':
             train_data = NumpyDataset(x[:args.train_size], y[:args.train_size])
             test_data = NumpyDataset(x[args.train_size:], y[args.train_size:])
 
+            print(f"average norm of response {np.linalg.norm(dataset.y, 2)**2 / len(dataset.y)}"")
+            print(f"sigma^2: {sigma2}")
+            print(f"r^2:{args.r2}")
+
             for optim_cls in OPTIMIZER_CLASSES:
                 # For each optimizer
                 model_name = optim_cls.__name__ + f'_sigma2={sigma2}' + f'_run={num_run}'
