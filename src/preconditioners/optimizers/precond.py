@@ -1,9 +1,10 @@
+from mimetypes import init
 import torch
-
+import numpy as np
 from preconditioners.optimizers.precond_base import PrecondBase
 from preconditioners.utils import model_gradients_using_backprop, model_gradients_using_batched_backprop
 from preconditioners.settings import DEVICE
-from sklearn.covariance import GraphicalLasso
+from sklearn.covariance import graphical_lasso, GraphicalLasso
 
 
 class PrecondGD(PrecondBase):
@@ -12,6 +13,7 @@ class PrecondGD(PrecondBase):
     def __init__(self, model, lr, labeled_data, unlabeled_data, damping=0., is_linear=False, verbose=True) -> None:
         super(PrecondGD, self).__init__(model, lr, labeled_data, unlabeled_data, damping, verbose)
         self.last_p_inv = None
+        self.recompute_p_inv = True
         self.is_linear = is_linear
 
     def _compute_fisher(self) -> torch.Tensor:
@@ -35,47 +37,65 @@ class PrecondGD(PrecondBase):
 
         return p
 
-    def _compute_p_inv(self) -> torch.Tensor:
+    def _compute_p_inv_old(self) -> torch.Tensor:
         """Compute the inverse matrix"""
 
         group = self.param_groups[0]
 
-        # if the model is linear, check if p_inv has previously been computed
-        if self.is_linear and self.last_p_inv is not None:
+        if self.recompute_p_inv:
+            p = self._compute_fisher()
+
+            # add damping to avoid division by zero
+            p += torch.eye(p.shape[0], device=DEVICE) * group['damping']
+            p_inv = torch.cholesky_inverse(p)
+
+            self.last_p_inv = p_inv
+            self.recompute_p_inv = False
+            return p_inv
+
+        else:
             return self.last_p_inv
 
-        p = self._compute_fisher()
-
-        # add damping to avoid division by zero
-        p += torch.eye(p.shape[0], device=DEVICE) * group['damping']
-        p_inv = torch.cholesky_inverse(p)
-
-        if self.is_linear:
-            self.last_p_inv = p_inv
-
-        return p_inv
-
-    def _compute_p_inv_glasso(self) -> torch.Tensor:
+    def _compute_p_inv(self) -> torch.Tensor:
         """Compute the inverse Fisher using graphical lasso"""
 
         group = self.param_groups[0]
+        unlabeled_data = group['unlabeled_data']
 
-        # if the model is linear, check if p_inv has previously been computed
-        if self.is_linear and self.last_p_inv is not None:
-            return self.last_p_inv
-        
-        # compute gradient with respect to unlabeled data all at once
-        unlabeled_grad = model_gradients_using_batched_backprop(self.model, group['unlabeled_data'])
+        if self.recompute_p_inv:
+            # get first gradient to get its shape
+            #grad = model_gradients_using_backprop(self.model, unlabeled_data[0]).detach()
+            #X = np.zeros((int(len(unlabeled_data)), len(grad)))
+            #X[0] = grad.detach().numpy().flatten()
 
-        # compute the inverse of the fisher information matrix using graphical lasso (need to do it in numpy)
+            #for i in range(len(unlabeled_data)-1):
+            #    x = unlabeled_data[i+1]
+            #    grad = model_gradients_using_backprop(self.model, x).detach()
+            #    X[i+1] = grad.detach().numpy().flatten()
 
-        ### TODO: implement initialization at previous self.last_p_inv
-        ### TODO: implement alpha parameter
-        cov = GraphicalLasso().fit(unlabeled_grad.detach().numpy())
-        p_inv = torch.from_numpy(cov.precision_).to(DEVICE)
+            grad = model_gradients_using_backprop(self.model, unlabeled_data[0]).detach().numpy().flatten()
+            p = len(grad)
 
-        if self.is_linear:
+            emp_cov = np.eye(p)
+            for x in unlabeled_data:
+                grad = model_gradients_using_backprop(self.model, x).detach().numpy().flatten()
+                emp_cov += grad.dot(grad.T)
+            
+            emp_cov = emp_cov / len(unlabeled_data)
+            
+
+            #cov = GraphicalLasso().fit(unlabeled_grad.detach().numpy())
+            init = self.last_p_inv.detach().numpy() if self.last_p_inv else None
+            #cov = GraphicalLasso(alpha = 0.2, cov_init = init).fit(X)
+            _, precision, _, _ = graphical_lasso(emp_cov, alpha = 1, cov_init = init)
+            p_inv = torch.from_numpy(precision).to(DEVICE)
+
             self.last_p_inv = p_inv
+            self.recompute_p_inv = False
+            return p_inv
+
+        else:
+            return self.last_p_inv
 
         return p_inv
 
