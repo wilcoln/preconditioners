@@ -21,8 +21,7 @@ from tqdm import tqdm
 from preconditioners.optimizers.kfac import Kfac, train as kfac_train, test as kfac_test
 from preconditioners.paths import plots_dir
 from preconditioners import settings
-from preconditioners.datasets import CenteredLinearGaussianDataset, CenteredQuadraticGaussianDataset
-from preconditioners.datasets import generate_true_parameter, generate_c, generate_W_star
+from preconditioners.datasets import NumpyDataset, generate_data
 from preconditioners.optimizers import GradientDescent, PrecondGD, PrecondGD2, PrecondGD3
 from preconditioners.utils import SLP, MLP
 from datetime import datetime as dt
@@ -54,6 +53,7 @@ def get_args():
     parser.add_argument('--stagnation_threshold', help='Maximum change in loss that counts as no progress', type=float, default=1e-6)
     parser.add_argument('--stagnation_count_max', help='Maximum number of iterations of no progress before the experiment terminates', type=int, default=5)
     # Data parameters
+    parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic'], default='quadratic')
     parser.add_argument('--ro', help='ro', type=float, default=.5)
     parser.add_argument('--r2', help='r2', type=float, default=1)
     parser.add_argument('--d', help='d', type=float, default=10)
@@ -181,19 +181,6 @@ def test(model, test_data, loss_function):
     return loss.item()
 
 
-def generate_linear_params(args):
-    w_star = generate_true_parameter(args.d, args.r2, m=np.eye(args.d))
-    c = generate_c(args.ro, regime='autoregressive', d=args.d)
-    return w_star, c
-
-
-def generate_quadratic_params(args, rng):
-    w_star = generate_true_parameter(args.d, args.r2, m=np.eye(args.d), rng=rng)
-    W_star = generate_W_star(args.d, args.r2, rng=rng)
-    c = generate_c(args.ro, regime='autoregressive', d=args.d, rng=rng)
-    return W_star, w_star, c
-
-
 def save_model_logs(model_logs, results_dir, model_name):
     # Plot train loses
     plt.title(model_name + ' | ' + model_logs['condition'])
@@ -286,11 +273,12 @@ if __name__ == '__main__':
     test_errors = defaultdict(list)
 
     # Generate true parameters
-    rng = np.random.RandomState(404)
-    W_star, w_star, c = generate_quadratic_params(args, rng)
-
-    extra_data = CenteredQuadraticGaussianDataset(
-        W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.extra_size, sigma2=1, rng=rng)
+    noiseless_data = generate_data(args.dataset, n=args.train_size + args.extra_size + args.test_size,
+        d=args.d, regime='autoregressive', ro=args.ro, r1=args.r2, sigma2=0)
+    x, y = noiseless_data
+    extra_data = NumpyDataset(x[-args.extra_size:], y[-args.extra_size:])
+    x = x[:-args.extra_size]
+    y_noiseless = y[:-args.extra_size]
 
     inv_fisher_cache = None
 
@@ -308,10 +296,10 @@ if __name__ == '__main__':
             print(f'\n\nRun N°: {num_run}')
             print(f'\n\nNoise variance: {sigma2}')
 
-            # Generate data
-            dataset = CenteredQuadraticGaussianDataset(
-                W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.train_size + args.test_size, sigma2=sigma2)
-            train_data, test_data = random_split(dataset, [args.train_size, args.test_size])
+            xi = np.random.normal(0, np.sqrt(sigma2), size=(args.train_size + args.test_size))
+            y = y_noiseless + xi
+            train_data = NumpyDataset(x[:args.train_size], y[:args.train_size])
+            test_data = NumpyDataset(x[args.train_size:], y[args.train_size:])
 
             for optim_cls in OPTIMIZER_CLASSES:
                 # For each optimizer

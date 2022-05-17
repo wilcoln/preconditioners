@@ -4,6 +4,19 @@ from icecream import ic
 import numpy as np
 import warnings
 
+class NumpyDataset(torch.utils.data.Dataset):
+
+    def __init__(self, x, y):
+        self.X = torch.from_numpy(x)
+        self.y = torch.from_numpy(y)
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, i):
+        return self.X[i], self.y[i]
+
+
 class CenteredLinearGaussianDataset(torch.utils.data.Dataset):
     """
     Prepare the Packages dataset for regression
