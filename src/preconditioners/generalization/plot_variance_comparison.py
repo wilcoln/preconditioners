@@ -12,6 +12,7 @@ plt.rcParams.update({"text.usetex": True})
 parser = argparse.ArgumentParser()
 parser.add_argument('--folder', help='Folder of experiment', type=str)
 parser.add_argument('--line_of_best_fit', action='store_true')
+parser.add_argument('--save_pdf', action='store_true')
 
 args = parser.parse_args()
 
@@ -66,16 +67,19 @@ test_loss_extra = [sum(var_to_loss[s2]['test_loss_extra'])/len(var_to_loss[s2]['
 # plt.show()
 
 # Plot test loss against variance
-plt.scatter(var_vals, test_loss, label="KFAC")
-plt.scatter(var_vals, test_loss_extra, label="KFAC-extra")
-plt.ylabel("Test Loss")
-plt.xlabel(r'$\sigma^2$')
-if args.line_of_best_fit:
-    plt.gca().set_prop_cycle(None)
-    x = np.linspace(var_vals[0], var_vals[-1], 10)
-    best_fit = np.poly1d(np.polyfit(var_vals, test_loss, 1))(x)
-    best_fit_extra = np.poly1d(np.polyfit(var_vals, test_loss_extra, 1))(x)
-    plt.plot(x, best_fit)
-    plt.plot(x, best_fit_extra)
-plt.legend()
-plt.show()
+with plt.style.context('seaborn'):
+    plt.scatter(var_vals, test_loss, label="KFAC")
+    plt.scatter(var_vals, test_loss_extra, label="KFAC-extra")
+    plt.ylabel("Test Loss")
+    plt.xlabel(r'$\sigma^2$')
+    if args.line_of_best_fit:
+        plt.gca().set_prop_cycle(None)
+        x = np.linspace(var_vals[0], var_vals[-1], 10)
+        best_fit = np.poly1d(np.polyfit(var_vals, test_loss, 1))(x)
+        best_fit_extra = np.poly1d(np.polyfit(var_vals, test_loss_extra, 1))(x)
+        plt.plot(x, best_fit)
+        plt.plot(x, best_fit_extra)
+    plt.legend()
+    if args.save_pdf:
+        plt.savefig(os.path.join(args.folder, f'variance_comparison_plot.pdf'))
+    plt.show()
