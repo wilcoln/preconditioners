@@ -17,6 +17,8 @@ args = parser.parse_args()
 test_errors = {}
 var_vals = []
 
+average_responses = []
+
 model_logs_folder = os.path.join(args.folder, 'model_logs')
 
 for experiment_file in os.listdir(model_logs_folder):
@@ -37,15 +39,18 @@ for experiment_file in os.listdir(model_logs_folder):
 
     test_errors[optimizer][s2].append(test_loss)
     var_vals.append(s2)
+    average_responses.append(results['average_response'])
 
 var_vals = sorted(set(var_vals))
+r2 = np.average(average_responses)
 # Plot test loss against variance
-print(test_errors)
-for optimizer in test_errors:
-    average_test_error = [np.average(test_errors[optimizer][s2]) for s2 in var_vals]
-    plt.scatter(var_vals, average_test_error, label=optimizer)
-
-plt.ylabel("Test Loss")
-plt.xlabel(r'$\sigma^2$')
-plt.legend()
-plt.show()
+with plt.style.context('seaborn'):
+    for optimizer in test_errors:
+        average_test_error = [np.average(test_errors[optimizer][s2]) / r2 for s2 in var_vals]
+        plt.scatter(var_vals, average_test_error, label=optimizer)
+    plt.ylabel("Test Loss")
+    plt.xlabel(r'$\sigma^2/r^2$')
+    plt.legend()
+    if args.save_pdf:
+        plt.savefig(os.path.join(args.folder, f'test_variance_plot.pdf'))
+    plt.show()

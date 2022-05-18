@@ -30,28 +30,37 @@ for entry in results:
     avg_evalues.append(np.average(evalues))
     all_evalues.append(evalues)
 
-# Plot min and max eigenavlues
-plt.scatter(widths, min_evalues, label='Min Eigenvalue')
-plt.scatter(widths, avg_evalues, label='Average Eigenvalue')
-plt.scatter(widths, max_evalues, label='Max Eigenvalue')
-plt.legend()
-plt.ylabel(r'$\lambda$')
-plt.xlabel(r'$n$')
-plt.show()
+with plt.style.context('seaborn'):
+    # Plot min and max eigenavlues
+    plt.scatter(widths, min_evalues, label='Min Eigenvalue')
+    plt.scatter(widths, avg_evalues, label='Average Eigenvalue')
+    plt.scatter(widths, max_evalues, label='Max Eigenvalue')
+    plt.legend()
+    plt.ylabel(r'$\lambda$')
+    plt.xlabel(r'$n$')
+    if args.save_pdf:
+        plt.savefig(os.path.join(args.folder, f'min_max_avg_plot.pdf'))
+    plt.show()
 
-# Plot min eigenavlues
-plt.scatter(widths, min_evalues)
-plt.ylabel(r'$\lambda_{min}$')
-plt.xlabel(r'$n$')
-plt.yscale("log")
-plt.show()
+with plt.style.context('seaborn'):
+    # Plot min eigenavlues
+    plt.scatter(widths, min_evalues)
+    plt.ylabel(r'$\lambda_{min}$')
+    plt.xlabel(r'$n$')
+    plt.yscale("log")
+    if args.save_pdf:
+        plt.savefig(os.path.join(args.folder, f'min_plot.pdf'))
+    plt.show()
 
 print(f"Maximum number of parameters: {len(all_evalues[-1])}")
 print(min_evalues)
 
-# Plot all eigenvalues
-for i in range(len(widths)):
-    plt.scatter([float(widths[i])]*len(all_evalues[i]), all_evalues[i], c='#1f77b4')
-plt.ylabel(r'$\lambda$')
-plt.xlabel(r'$n$')
-plt.show()
+with plt.style.context('seaborn'):
+    # Plot all eigenvalues
+    for i in range(len(widths)):
+        plt.scatter([float(widths[i])]*len(all_evalues[i]), all_evalues[i], c='#1f77b4')
+    plt.ylabel(r'$\lambda$')
+    plt.xlabel(r'$n$')
+    if args.save_pdf:
+        plt.savefig(os.path.join(args.folder, f'all_evalues_plot.pdf'))
+    plt.show()
