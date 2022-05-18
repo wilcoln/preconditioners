@@ -99,6 +99,11 @@ if __name__ == "__main__":
         x, y_noiseless = noiseless_data
         y_noiseless = np.expand_dims(y_noiseless, 1)
 
+        average_response = np.inner(y_noiseless, y_noiseless) / (args.train_size + args.test_size)
+        params_dict['average_response'] = average_response
+        print(f"Average norm of response {average_response}")
+        print(f"r^2:{r1}")
+
         for variance in np.arange(min_var, max_var + step_var, step_var):
             variance = variance.astype(float)
             # Add noise to labels
