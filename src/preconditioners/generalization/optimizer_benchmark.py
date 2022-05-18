@@ -21,8 +21,7 @@ from tqdm import tqdm
 from preconditioners.optimizers.kfac import Kfac, train as kfac_train, test as kfac_test
 from preconditioners.paths import plots_dir
 from preconditioners import settings
-from preconditioners.datasets import CenteredLinearGaussianDataset, CenteredQuadraticGaussianDataset
-from preconditioners.datasets import generate_true_parameter, generate_c, generate_W_star
+from preconditioners.datasets import NumpyDataset, DataGenerator
 from preconditioners.optimizers import GradientDescent, PrecondGD, PrecondGD2, PrecondGD3
 from preconditioners.utils import SLP, MLP
 from datetime import datetime as dt
@@ -37,8 +36,8 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--num_runs', help='Number of runs', default=1, type=int)
     parser.add_argument('--max_iter', help='Max epochs', default=float('inf'), type=int)
-    parser.add_argument('--max_variance', help='Max var', default=10, type=int)
-    parser.add_argument('--min_variance', help='Min var', default=1, type=int)
+    parser.add_argument('--max_variance', help='Max var', default=10, type=float)
+    parser.add_argument('--min_variance', help='Min var', default=1, type=float)
     parser.add_argument('--num_plot_points', help='Number of plot points', default=10, type=int)
     # Dataset size
     parser.add_argument('--train_size', help='Train size', default=128, type=int)
@@ -54,6 +53,7 @@ def get_args():
     parser.add_argument('--stagnation_threshold', help='Maximum change in loss that counts as no progress', type=float, default=1e-6)
     parser.add_argument('--stagnation_count_max', help='Maximum number of iterations of no progress before the experiment terminates', type=int, default=5)
     # Data parameters
+    parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic', 'MLP'], default='quadratic')
     parser.add_argument('--ro', help='ro', type=float, default=.5)
     parser.add_argument('--r2', help='r2', type=float, default=0.1)
     parser.add_argument('--d', help='d', type=float, default=10)
@@ -186,19 +186,6 @@ def test(model, test_data, loss_function):
     return loss.item()
 
 
-def generate_linear_params(args):
-    w_star = generate_true_parameter(args.d, args.r2, m=np.eye(args.d))
-    c = generate_c(args.ro, regime='autoregressive', d=args.d)
-    return w_star, c
-
-
-def generate_quadratic_params(args, rng):
-    w_star = generate_true_parameter(args.d, args.r2, m=np.eye(args.d), rng=rng)
-    W_star = generate_W_star(args.d, args.r2, rng=rng)
-    c = generate_c(args.ro, regime='autoregressive', d=args.d, rng=rng)
-    return W_star, w_star, c
-
-
 def save_model_logs(model_logs, results_dir, model_name):
     # Plot train loses
     plt.title(model_name + ' | ' + model_logs['condition'])
@@ -248,7 +235,7 @@ def plot_and_save_results(test_errors, results_dir, save_test_error=True, final_
         pickle.dump(mean_test_errors, f)
 
     # Print path to results
-    print(f'Results saved to {results_dir}')
+    print(f'\nResults saved to {results_dir}')
 
     if final_plot:
         plt.show()
@@ -277,55 +264,58 @@ def create_results_dir_and_save_params(params_dict):
 
 
 if __name__ == '__main__':
+    # Set seed and log settings
+    np.random.seed(404)
+    torch.manual_seed(404)
+    warnings.filterwarnings("ignore")
+
+    # Collect arguments
     args = get_args()
     noise_variances = np.linspace(args.min_variance, args.max_variance, args.num_plot_points)
     num_params = (1 + args.d) * args.width + (args.width ** 2) * (args.num_layers - 2)
+
+    # Create data generator
+    data_generator = DataGenerator(args.dataset, d=args.d, regime='autoregressive',
+        ro=args.ro, r1=args.r2, num_layers=args.num_layers, hidden_channels=args.width)
+    # Generate extra data
+    extra_data = data_generator.generate(args.extra_size, sigma2=0)
+    x, y = extra_data
+    extra_data = NumpyDataset(x, y)
+    inv_fisher_cache = None
+
+    # Create model
     model = MLP(in_channels=args.d, num_layers=args.num_layers, hidden_channels=args.width).double().to(settings.DEVICE)
     init_model_state = deepcopy(model.state_dict())
-    # endregion
-
-    # Create results dir and save params
-    results_dir = create_results_dir_and_save_params(params_dict=vars(args))
-
-    # Test errors collector
-    test_errors = defaultdict(list)
-
-    # Generate true parameters
-    rng = np.random.RandomState(404)
-    W_star, w_star, c = generate_quadratic_params(args, rng)
-
-    extra_data = CenteredQuadraticGaussianDataset(
-        W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.extra_size, sigma2=1, rng=rng)
-
-    inv_fisher_cache = None
 
     # Set progress bar
     pbar = tqdm(total=args.num_runs * len(OPTIMIZER_CLASSES) * len(noise_variances))
     pbar.set_description('Running experiments')
-
-    # Shutdown warnings
-    warnings.filterwarnings("ignore")
+    # Create test errors
+    test_errors = defaultdict(list)
+    # Create results dir and save params
+    results_dir = create_results_dir_and_save_params(params_dict=vars(args))
 
     # Run experiments
     for num_run in range(1, 1 + args.num_runs):
+        # Generate true parameters
+        noiseless_data = data_generator.generate(args.train_size + args.test_size, sigma2=0)
+        x, y_noiseless = noiseless_data
+
+        # Compute signal
+        average_response = np.sum(np.square(y_noiseless)) / (args.train_size + args.test_size)
+        print(f"Average norm of response {average_response}")
+        print(f"r^2:{args.r2}")
+
         run_test_errors = defaultdict(list)
         for sigma2 in noise_variances:
             print(f'\n\nRun N°: {num_run}')
-            print(f'\n\nNoise variance: {sigma2}')
+            print(f'Noise variance: {sigma2}')
 
-            # Generate data
-            if args.dataset == 'quadratic':
-                dataset = CenteredQuadraticGaussianDataset(
-                    W_star=W_star, w_star=w_star, d=args.d, c=c, n=args.train_size + args.test_size, sigma2=sigma2)
-                train_data, test_data = random_split(dataset, [args.train_size, args.test_size])
-            elif args.dataset == 'linear':
-                dataset = CenteredLinearGaussianDataset(
-                    w_star=w_star, d=args.d, c=c, n=args.train_size + args.test_size, sigma2=sigma2)
-                train_data, test_data = random_split(dataset, [args.train_size, args.test_size])
-
-            print(f'average norm of response {np.linalg.norm(dataset.y, 2)**2 / len(dataset.y)}')
-            print(f'sigma^2: {sigma2}')
-            print(f'r^2:{args.r2}')
+            # Add noise to data to create train and test sets
+            xi = np.random.normal(0, np.sqrt(sigma2), size=(args.train_size + args.test_size))
+            y = y_noiseless + xi
+            train_data = NumpyDataset(x[:args.train_size], y[:args.train_size])
+            test_data = NumpyDataset(x[args.train_size:], y[args.train_size:])
 
             for optim_cls in OPTIMIZER_CLASSES:
                 # For each optimizer
@@ -363,6 +353,7 @@ if __name__ == '__main__':
 
 
                 model_logs['sigma2'] = sigma2
+                model_logs['average_response'] = average_response
                 model_logs['test_loss'] = test_loss
                 model_logs['optimizer'] = optim_cls.__name__
                 save_model_logs(model_logs, results_dir, model_name)

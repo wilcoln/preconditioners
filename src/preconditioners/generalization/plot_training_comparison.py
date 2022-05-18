@@ -13,6 +13,7 @@ parser.add_argument('--folder', help='Folder of experiment', type=str)
 parser.add_argument('--num_test_points', help='Number of test points to plot', type=int, default=5)
 parser.add_argument('--num_weights', help='Number of weights to plot', type=int, default=5)
 parser.add_argument('--max_iter', help='Maximum number of iterations to plot', type=int, default=float('inf'))
+parser.add_argument('--save_pdf', action='store_true')
 
 args = parser.parse_args()
 
@@ -44,13 +45,16 @@ for entry in results:
 
 # Plot loss over epochs
 if plot_loss:
-    train_lines = plt.plot(epochs, loss, label='Train')
-    test_lines = plt.plot(epochs, test_loss, label='Test')
-    train_extra_lines = plt.plot(epochs, loss_extra, linestyle='dashed')
-    test_extra_lines = plt.plot(epochs, test_loss_extra, linestyle='dashed')
-    train_extra_lines[0].set_color(train_lines[0].get_color())
-    test_extra_lines[0].set_color(test_lines[0].get_color())
-    plt.xlabel(r'$t$')
-    plt.ylabel('Train/Test Loss')
-    plt.legend()
-    plt.show()
+    with plt.style.context('seaborn'):
+        train_lines = plt.plot(epochs, loss, label='Train')
+        test_lines = plt.plot(epochs, test_loss, label='Test')
+        train_extra_lines = plt.plot(epochs, loss_extra, linestyle='dashed')
+        test_extra_lines = plt.plot(epochs, test_loss_extra, linestyle='dashed')
+        train_extra_lines[0].set_color(train_lines[0].get_color())
+        test_extra_lines[0].set_color(test_lines[0].get_color())
+        plt.xlabel(r'$t$')
+        plt.ylabel('Train/Test Loss')
+        plt.legend()
+        if args.save_pdf:
+            plt.savefig(os.path.join(args.folder, f'loss_plot.pdf'))
+        plt.show()

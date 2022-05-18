@@ -9,8 +9,10 @@ import json
 import jax
 from jax.example_libraries import stax
 from jax.nn.initializers import normal
+import torch
+import warnings
 
-from preconditioners.datasets import generate_data
+from preconditioners.datasets import DataGenerator
 from preconditioners.generalization.kfac_extra_training import ExtraDataExperiment
 
 def get_args():
@@ -24,7 +26,7 @@ def get_args():
     parser.add_argument('--l2', help='L2-regularization coefficient', type=float, default=0.)
     parser.add_argument('--use_adaptive_lr', action='store_true', default=False)
     # Data params
-    parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic'], default='quadratic')
+    parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic', 'MLP'], default='quadratic')
     parser.add_argument('--train_size', help='Number of train examples', type=int, default=128)
     parser.add_argument('--test_size', help='Number of test examples', type=int, default=128)
     parser.add_argument('--extra_size', help='Number of test examples', type=int, default=256)
@@ -57,6 +59,7 @@ def create_jax_model(width, num_layers, in_dim, out_dim, key):
     return f, params
 
 if __name__ == "__main__":
+    warnings.filterwarnings("ignore")
     args = get_args()
     train_size, test_size, extra_size = args.train_size, args.test_size, args.extra_size
     dataset, in_dim = args.dataset, args.in_dim
@@ -80,14 +83,15 @@ if __name__ == "__main__":
     experiment_folder = os.path.join(save_folder, experiment_name)
     os.makedirs(experiment_folder)
 
-    # Generate data
-    noiseless_data = generate_data(dataset, n=train_size + extra_size + test_size,
-        d=in_dim, regime='autoregressive', ro=ro, r1=r1, sigma2=0)
-    x, y = noiseless_data
+    # Generate extra data
+    np.random.seed(404)
+    torch.manual_seed(404)
+    data_generator = DataGenerator(dataset, d=in_dim, regime='autoregressive',
+        ro=ro, r1=r1, r2=r1, sigma2=0, hidden_channels=width, num_layers=num_layers)
+    extra_data = data_generator.generate(extra_size)
+    x, y = extra_data
     y = np.expand_dims(y, 1)
-    extra_data = (x[-extra_size:], y[-extra_size:])
-    x = x[:-extra_size]
-    y_noiseless = y[:-extra_size]
+    extra_data = (x, y)
 
     # Create MLP
     key = jax.random.PRNGKey(42)
@@ -95,6 +99,16 @@ if __name__ == "__main__":
 
     # For each variance value, run the KFAC training comparison experiment
     for i in range(num_runs):
+        # Generate data
+        noiseless_data = data_generator.generate(train_size + test_size)
+        x, y_noiseless = noiseless_data
+        average_response = np.sum(np.square(y_noiseless)) / (args.train_size + args.test_size)
+        y_noiseless = np.expand_dims(y_noiseless, 1)
+
+        params_dict['average_response'] = average_response
+        print(f"Average norm of response {average_response}")
+        print(f"r^2:{r1}")
+
         for variance in np.arange(min_var, max_var + step_var, step_var):
             variance = variance.astype(float)
             # Add noise to labels

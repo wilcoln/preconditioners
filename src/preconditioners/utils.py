@@ -392,10 +392,10 @@ class MLP(nn.Module):
     def forward(self, x):
         """ Forward pass of the MLP. """
         x = self.in_layer(x)
-        x = F.relu(x)
+        x = F.tanh(x)
         for layer in self.hidden_layers:
             x = layer(x)
-            x = F.relu(x)
+            x = F.tanh(x)
         x = self.output_layer(x)
         return x
 
@@ -408,6 +408,7 @@ class MLP(nn.Module):
     def init_params(self, sigma_w, sigma_b):
         tmp = sigma_w / np.sqrt(self.hidden_channels)
         self.in_layer.weight.data.normal_(0, tmp)
+        self.in_layer.bias.data.normal_(0, sigma_b)
         for layer in self.hidden_layers:
             layer.weight.data.normal_(0, tmp)
             layer.bias.data.normal_(0, sigma_b)

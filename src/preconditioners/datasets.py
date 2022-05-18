@@ -3,6 +3,19 @@ import torch.utils.data
 from icecream import ic
 import numpy as np
 import warnings
+from preconditioners.utils import MLP
+
+class NumpyDataset(torch.utils.data.Dataset):
+
+    def __init__(self, x, y):
+        self.X = torch.from_numpy(x)
+        self.y = torch.from_numpy(y)
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, i):
+        return self.X[i], self.y[i]
 
 class CenteredLinearGaussianDataset(torch.utils.data.Dataset):
     """
@@ -38,6 +51,45 @@ class CenteredQuadraticGaussianDataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         return self.X[i], self.y[i]
 
+class DataGenerator:
+
+    def __init__(self, dataset_name, **kwargs):
+        self.dataset_name = dataset_name
+        self.kwargs = kwargs
+        if dataset_name == 'linear':
+            self.w_star = generate_true_parameter(**kwargs)
+            self.c = generate_c(**kwargs)
+        elif dataset_name == 'quadratic':
+            self.w_star = generate_true_parameter(**kwargs)
+            self.W_star = generate_W_star(**kwargs)
+            self.c = generate_c(**kwargs)
+        elif dataset_name == 'MLP':
+            self.c = generate_c(**kwargs)
+            self.model = MLP(in_channels=kwargs['d'], num_layers=kwargs['num_layers'], hidden_channels=kwargs['hidden_channels'])
+        else:
+            raise Error("Do not recognise dataset name")
+
+    def generate(self, n, sigma2=None):
+        if sigma2 is None:
+            sigma2 = self.kwargs['sigma2']
+        kwargs = self.kwargs.copy()
+        kwargs['sigma2'] = sigma2
+
+        if self.dataset_name == 'linear':
+            x, y, _ = generate_centered_linear_gaussian_data(n=n, w_star=self.w_star, c=self.c, **self.kwargs)
+        elif self.dataset_name == 'quadratic':
+            x, y, _ = generate_centered_quadratic_gaussian_data(n=n, W_star=self.W_star, w_star=self.w_star, c=self.c, **self.kwargs)
+        elif self.dataset_name == 'MLP':
+            c = generate_c(**kwargs)
+            x = np.random.multivariate_normal(mean=np.zeros(kwargs['d']), cov=self.c, size=n)
+            y_noiseless = self.model(torch.from_numpy(x).float())
+            y_noiseless = y_noiseless.cpu().detach().numpy()
+            y_noiseless = np.squeeze(y_noiseless)
+            y = y_noiseless + np.random.normal(0, sigma2, size=n)
+
+        return x, y
+
+
 def generate_data(dataset_name='linear', **kwargs):
     """Generates data
 
@@ -61,12 +113,21 @@ def generate_data(dataset_name='linear', **kwargs):
         c = generate_c(**kwargs)
         x, y, _ = generate_centered_linear_gaussian_data(w_star=w_star, c=c, **kwargs)
         return (x, y)
-    if dataset_name == 'quadratic':
+    elif dataset_name == 'quadratic':
         w_star = generate_true_parameter(**kwargs)
         W_star = generate_W_star(**kwargs)
         c = generate_c(**kwargs)
         x, y, _ = generate_centered_quadratic_gaussian_data(W_star=W_star, w_star=w_star, c=c, **kwargs)
         return (x, y)
+    elif dataset_name == 'MLP':
+        d, n, sigma2 = kwargs['d'], kwargs['n'], kwargs['sigma2']
+        c = generate_c(**kwargs)
+        X = np.random.multivariate_normal(mean=np.zeros(d), cov=c, size=n)
+        model = MLP(in_channels=d, num_layers=kwargs['num_layers'], hidden_channels=kwargs['hidden_channels'])
+        y_noiseless = model(torch.from_numpy(X).float()).cpu().detach().numpy()
+        y = y_noiseless + np.random.normal(0, sigma2, size=(n, 1))
+        y = np.squeeze(y)
+        return (X, y)
 
     raise Exception(f"Unrecognised dataset name")
 
@@ -148,7 +209,7 @@ def generate_true_parameter(d=10, r1=5, m=None, rng=None, **kwargs):
 
     return w_star
 
-def generate_W_star(d=10, r2=5, rng=None, **kwargs):
+def generate_W_star(d=10, r2=1, rng=None, **kwargs):
     """Generates W_star for the quadratic model
 
     Return a somewhat random matrix of size (d, d), which does not have degenerate trace or determinant.
@@ -171,7 +232,7 @@ def generate_W_star(d=10, r2=5, rng=None, **kwargs):
     return W
 
 
-def generate_c(ro=0.25, regime='id', d=600, strong_feature=1, strong_feature_ratio=1 / 2, weak_feature=1, **kwargs):
+def generate_c(ro=0.5, regime='id', d=10, strong_feature=1, strong_feature_ratio=1 / 2, weak_feature=1, **kwargs):
     """Generates c for quadratic and linear dataset"""
     c = np.eye(d)
 
