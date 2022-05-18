@@ -21,7 +21,7 @@ from tqdm import tqdm
 from preconditioners.optimizers.kfac import Kfac, train as kfac_train, test as kfac_test
 from preconditioners.paths import plots_dir
 from preconditioners import settings
-from preconditioners.datasets import NumpyDataset, generate_data
+from preconditioners.datasets import NumpyDataset, DataGenerator
 from preconditioners.optimizers import GradientDescent, PrecondGD, PrecondGD2, PrecondGD3
 from preconditioners.utils import SLP, MLP
 from datetime import datetime as dt
@@ -259,41 +259,45 @@ def create_results_dir_and_save_params(params_dict):
 
 
 if __name__ == '__main__':
+    # Set seed and log settings
+    np.random.seed(404)
+    torch.manual_seed(404)
+    warnings.filterwarnings("ignore")
+
+    # Collect arguments
     args = get_args()
     noise_variances = np.linspace(args.min_variance, args.max_variance, args.num_plot_points)
     num_params = (1 + args.d) * args.width + (args.width ** 2) * (args.num_layers - 2)
-    model = MLP(in_channels=args.d, num_layers=args.num_layers, hidden_channels=args.width).double().to(settings.DEVICE)
-    init_model_state = deepcopy(model.state_dict())
-    # endregion
 
-    # Create results dir and save params
-    results_dir = create_results_dir_and_save_params(params_dict=vars(args))
-
-    # Test errors collector
-    test_errors = defaultdict(list)
-
-    # Generate true parameters
-    extra_data = generate_data(args.dataset, n=args.extra_size,
-        d=args.d, regime='autoregressive', ro=args.ro, r1=args.r2, sigma2=0, num_layers=args.num_layers, hidden_channels=args.width)
+    # Create data generator
+    data_generator = DataGenerator(args.dataset, d=args.d, regime='autoregressive',
+        ro=args.ro, r1=args.r2, num_layers=args.num_layers, hidden_channels=args.width)
+    # Generate extra data
+    extra_data = data_generator.generate(args.extra_size, sigma2=0)
     x, y = extra_data
     extra_data = NumpyDataset(x, y)
     inv_fisher_cache = None
 
+    # Create model
+    model = MLP(in_channels=args.d, num_layers=args.num_layers, hidden_channels=args.width).double().to(settings.DEVICE)
+    init_model_state = deepcopy(model.state_dict())
+
     # Set progress bar
     pbar = tqdm(total=args.num_runs * len(OPTIMIZER_CLASSES) * len(noise_variances))
     pbar.set_description('Running experiments')
-
-    # Shutdown warnings
-    warnings.filterwarnings("ignore")
+    # Create test errors
+    test_errors = defaultdict(list)
+    # Create results dir and save params
+    results_dir = create_results_dir_and_save_params(params_dict=vars(args))
 
     # Run experiments
     for num_run in range(1, 1 + args.num_runs):
         # Generate true parameters
-        noiseless_data = generate_data(args.dataset, n=args.train_size + args.test_size,
-            d=args.d, regime='autoregressive', ro=args.ro, r1=args.r2, r2=args.r2, sigma2=0, num_layers=args.num_layers, hidden_channels=args.width)
+        noiseless_data = data_generator.generate(args.train_size + args.test_size, sigma2=0)
         x, y_noiseless = noiseless_data
 
-        average_response = np.inner(y_noiseless, y_noiseless) / (args.train_size + args.test_size)
+        # Compute signal
+        average_response = np.sum(np.square(y_noiseless)) / (args.train_size + args.test_size)
         print(f"Average norm of response {average_response}")
         print(f"r^2:{args.r2}")
 
@@ -302,6 +306,7 @@ if __name__ == '__main__':
             print(f'\n\nRun N°: {num_run}')
             print(f'Noise variance: {sigma2}')
 
+            # Add noise to data to create train and test sets
             xi = np.random.normal(0, np.sqrt(sigma2), size=(args.train_size + args.test_size))
             y = y_noiseless + xi
             train_data = NumpyDataset(x[:args.train_size], y[:args.train_size])

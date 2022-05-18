@@ -51,6 +51,45 @@ class CenteredQuadraticGaussianDataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         return self.X[i], self.y[i]
 
+class DataGenerator:
+
+    def __init__(self, dataset_name, **kwargs):
+        self.dataset_name = dataset_name
+        self.kwargs = kwargs
+        if dataset_name == 'linear':
+            self.w_star = generate_true_parameter(**kwargs)
+            self.c = generate_c(**kwargs)
+        elif dataset_name == 'quadratic':
+            self.w_star = generate_true_parameter(**kwargs)
+            self.W_star = generate_W_star(**kwargs)
+            self.c = generate_c(**kwargs)
+        elif dataset_name == 'MLP':
+            self.c = generate_c(**kwargs)
+            self.model = MLP(in_channels=kwargs['d'], num_layers=kwargs['num_layers'], hidden_channels=kwargs['hidden_channels'])
+        else:
+            raise Error("Do not recognise dataset name")
+
+    def generate(self, n, sigma2=None):
+        if sigma2 is None:
+            sigma2 = kwargs['sigma2']
+        kwargs = self.kwargs.copy()
+        kwargs['sigma2'] = sigma2
+
+        if self.dataset_name == 'linear':
+            x, y, _ = generate_centered_linear_gaussian_data(n=n, w_star=self.w_star, c=self.c, **self.kwargs)
+        elif self.dataset_name == 'quadratic':
+            x, y, _ = generate_centered_quadratic_gaussian_data(n=n, W_star=self.W_star, w_star=self.w_star, c=self.c, **self.kwargs)
+        elif self.dataset_name == 'MLP':
+            c = generate_c(**kwargs)
+            x = np.random.multivariate_normal(mean=0, cov=self.c, size=n)
+            y_noiseless = model(torch.from_numpy(x).float())
+            y_noiseless = y_noiseless.cpu().detach().numpy()
+            y_noiseless = np.squeeze(y_noiseless)
+            y = y_noiseless + np.random.normal(0, sigma2, size=n)
+
+        return x, y
+
+
 def generate_data(dataset_name='linear', **kwargs):
     """Generates data
 
