@@ -55,13 +55,12 @@ def get_args():
     # Data parameters
     parser.add_argument('--dataset', help='Type of dataset', choices=['linear', 'quadratic', 'MLP'], default='quadratic')
     parser.add_argument('--ro', help='ro', type=float, default=.5)
-    parser.add_argument('--r2', help='r2', type=float, default=0.1)
+    parser.add_argument('--r2', help='r2', type=float, default=1)
     parser.add_argument('--d', help='d', type=float, default=10)
     parser.add_argument('--use_init_fisher', action='store_true')
     parser.add_argument('--fisher_update_steps', type=int, default=None)
     parser.add_argument('--lr_multiplier', type=float, default=1)
     parser.add_argument('--print_every', help='print_every', type=int, default=100)
-    parser.add_argument('--dataset', help='quadratic or linear', type=str, default='quadratic')
     args = parser.parse_args()
     # endregion
 
