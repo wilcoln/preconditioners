@@ -9,6 +9,8 @@ import json
 import jax
 from jax.example_libraries import stax
 from jax.nn.initializers import normal
+import torch
+import warnings
 
 from preconditioners.datasets import DataGenerator
 from preconditioners.generalization.kfac_extra_training import ExtraDataExperiment
@@ -57,6 +59,7 @@ def create_jax_model(width, num_layers, in_dim, out_dim, key):
     return f, params
 
 if __name__ == "__main__":
+    warnings.filterwarnings("ignore")
     args = get_args()
     train_size, test_size, extra_size = args.train_size, args.test_size, args.extra_size
     dataset, in_dim = args.dataset, args.in_dim

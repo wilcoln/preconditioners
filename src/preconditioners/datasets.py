@@ -71,7 +71,7 @@ class DataGenerator:
 
     def generate(self, n, sigma2=None):
         if sigma2 is None:
-            sigma2 = kwargs['sigma2']
+            sigma2 = self.kwargs['sigma2']
         kwargs = self.kwargs.copy()
         kwargs['sigma2'] = sigma2
 
@@ -81,8 +81,8 @@ class DataGenerator:
             x, y, _ = generate_centered_quadratic_gaussian_data(n=n, W_star=self.W_star, w_star=self.w_star, c=self.c, **self.kwargs)
         elif self.dataset_name == 'MLP':
             c = generate_c(**kwargs)
-            x = np.random.multivariate_normal(mean=0, cov=self.c, size=n)
-            y_noiseless = model(torch.from_numpy(x).float())
+            x = np.random.multivariate_normal(mean=np.zeros(kwargs['d']), cov=self.c, size=n)
+            y_noiseless = self.model(torch.from_numpy(x).float())
             y_noiseless = y_noiseless.cpu().detach().numpy()
             y_noiseless = np.squeeze(y_noiseless)
             y = y_noiseless + np.random.normal(0, sigma2, size=n)
