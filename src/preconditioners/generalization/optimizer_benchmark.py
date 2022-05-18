@@ -290,7 +290,7 @@ if __name__ == '__main__':
     for num_run in range(1, 1 + args.num_runs):
         # Generate true parameters
         noiseless_data = generate_data(args.dataset, n=args.train_size + args.test_size,
-            d=args.d, regime='autoregressive', ro=args.ro, r1=args.r2, sigma2=0, num_layers=args.num_layers, hidden_channels=args.width)
+            d=args.d, regime='autoregressive', ro=args.ro, r1=args.r2, r2=args.r2, sigma2=0, num_layers=args.num_layers, hidden_channels=args.width)
         x, y_noiseless = noiseless_data
 
         average_response = np.inner(y_noiseless, y_noiseless) / (args.train_size + args.test_size)

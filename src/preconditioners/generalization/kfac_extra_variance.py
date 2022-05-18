@@ -86,7 +86,7 @@ if __name__ == "__main__":
 
     # Generate extra data
     extra_data = generate_data(dataset, n=extra_size,
-        d=in_dim, regime='autoregressive', ro=ro, r1=r1, sigma2=0, hidden_channels=width, num_layers=num_layers)
+        d=in_dim, regime='autoregressive', ro=ro, r1=r1, r2=r1, sigma2=0, hidden_channels=width, num_layers=num_layers)
     x, y = extra_data
     y = np.expand_dims(y, 1)
     extra_data = (x, y)
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     for i in range(num_runs):
         # Generate data
         noiseless_data = generate_data(dataset, n=train_size + test_size,
-            d=in_dim, regime='autoregressive', ro=ro, r1=r1, sigma2=0, hidden_channels=width, num_layers=num_layers)
+            d=in_dim, regime='autoregressive', ro=ro, r1=r1, r2=r1, sigma2=0, hidden_channels=width, num_layers=num_layers)
         x, y_noiseless = noiseless_data
         y_noiseless = np.expand_dims(y_noiseless, 1)
 

@@ -213,7 +213,7 @@ if __name__ == "__main__":
     # Generate data
     print("Generating data...")
     dataset = generate_data(dataset, n=train_size + test_size + extra_size, d=in_dim,
-        regime=regime, ro=ro, r1=r1, sigma2=sigma2, num_layers=num_layers, hidden_channels=width)
+        regime=regime, ro=ro, r1=r1, r2=r1, sigma2=sigma2, num_layers=num_layers, hidden_channels=width)
     train_data, test_data, extra_data = data_random_split(dataset, (train_size, test_size, extra_size))
 
     if args.extra_includes_train:
@@ -233,10 +233,6 @@ if __name__ == "__main__":
     experiment = ExtraDataExperiment(model, params, lr=lr, damping=damping, l2=l2, use_adaptive_lr=use_adaptive_lr)
     key, sub_key = jax.random.split(key)
     experiment.setup(train_data, extra_data, sub_key)
-
-    print(train_data)
-    print(extra_data)
-    print(test_data)
 
     # Run experiment
     print("Starting training...")
