@@ -10,6 +10,7 @@ plt.rcParams.update({"text.usetex": True})
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--folder', help='Folder of experiment', type=str)
+parser.add_argument('--save_pdf', action='store_true')
 
 args = parser.parse_args()
 
