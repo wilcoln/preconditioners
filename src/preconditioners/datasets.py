@@ -206,7 +206,7 @@ def generate_true_parameter(d=10, r1=5, m=None, rng=None, **kwargs):
 
     rng = rng if rng is not None else np.random
     w_star = rng.multivariate_normal(np.zeros(d), r1 / d * m)
-
+    
     return w_star
 
 def generate_W_star(d=10, r2=1, rng=None, **kwargs):

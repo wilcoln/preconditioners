@@ -44,10 +44,9 @@ class PrecondGD(PrecondBase):
             return self.last_p_inv
 
         p = self._compute_fisher()
-
-        # add damping to avoid division by zero
+        # add damping
         p += torch.eye(p.shape[0], device=DEVICE) * group['damping']
-        p_inv = torch.cholesky_inverse(p)
+        p_inv = torch.cholesky_inverse(torch.linalg.cholesky(p))
 
         if self.is_linear:
             self.last_p_inv = p_inv

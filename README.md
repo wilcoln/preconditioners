@@ -45,7 +45,7 @@ python src/preconditioners/generalization/optimizer_benchmark.py --num_layers 3 
 conda env create -f env.yml
 conda activate preconditioners
 python -m ipykernel install --user --name preconditioners
-```
+``` 
 
 After installing, every time you want to work with this project run `conda activate preconditioners` and after you
 finish, run `conda deactivate`.
