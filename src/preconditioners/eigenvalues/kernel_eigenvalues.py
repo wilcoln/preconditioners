@@ -70,6 +70,13 @@ class CheckEigenvalues:
     def create_model(self, width):
         std = 1/ np.sqrt(width)
 
+        # TODO: isn't this wrong?
+        # We have std = 1/sqrt(width) here, but inside MLP we initialize the weights with 
+        # sigma_w = std
+        # tmp = sigma_w / np.sqrt(self.hidden_channels)
+        # layer.weight.data.normal_(0, tmp)
+        # so this adds up to normal distribution with std = 1/sqrt(width) * sqrt(width)!!!!
+
         # Create model and optimizer
         model = MLP(in_channels=self.d, num_layers=3, hidden_channels=width, std=std).double().to(
             settings.DEVICE)

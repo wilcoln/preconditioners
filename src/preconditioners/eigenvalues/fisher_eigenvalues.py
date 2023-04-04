@@ -43,6 +43,13 @@ class CheckEigenValues:
         if use_ntk:
             std /= np.sqrt(width)
 
+            # TODO: isn't this wrong?
+            # We have std = 1/sqrt(width) here, but inside MLP we initialize the weights with 
+            # sigma_w = std
+            # tmp = sigma_w / np.sqrt(self.hidden_channels)
+            # layer.weight.data.normal_(0, tmp)
+            # so this adds up to normal distribution with std = 1/sqrt(width) * sqrt(width)
+
         # Create model and optimizer
         self.model = MLP(in_channels=self.dataset.shape[1], num_layers=3, hidden_channels=width, std=std).double().to(
             settings.DEVICE)
